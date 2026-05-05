@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "baboontrack"
+version = "0.0.1"
+authors = [
+  { name="Pierre-Etienne Martin", email="pe.martin@lilo.org" },
+]
+description = "Package for Baboon Tracking."
+readme = "README.md"
+requires-python = ">=3.9,<3.14"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "megadetector>=10.0.0,<11.0.0",
+    "natsort>=6",
+    # "pandas>=1",
+    "EMD-signal",
+    # "scikit-learn>=1.0",
+    "ijson>=3.1.0",
+    "odfpy>=1.4.1",
+    "psutil>=5.8.0",
+    # "bioread>=3.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/P-eMartin/baboontrack"
+Issues = "https://github.com/P-eMartin/baboontrack/issues"
