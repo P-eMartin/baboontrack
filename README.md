@@ -2,7 +2,6 @@
 
 This is a package to perform detection, tracking and classification of Baboons.
 
-
 ## Description
 
 TODO
