@@ -1,0 +1,7 @@
+**/__pycache__/
+**/*.pt
+**/*output*/
+**/.**/
+!.github/
+dist/*.tar.gz
+**/*data*/

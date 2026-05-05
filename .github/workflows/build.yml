@@ -1,0 +1,56 @@
+name: Build Package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build pdoc
+
+    - name: Build the package
+      run: |
+        python -m build
+
+    - name: Install the package
+      run: |
+        pip install dist/*.whl
+    
+    - name: Generate documentation
+      run: |
+        pdoc --docformat google src/baboontrack --o docs
+
+    - name: Deploy documentation to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs
+
+    - name: Commit built package and docs if changed
+      run: |
+        git add dist/*.whl docs
+        if git diff --cached --quiet; then
+          echo "No changes detected in dist/*.whl or docs. Exiting."
+        else
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m "github action: commit build package and doc"
+          git push
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
