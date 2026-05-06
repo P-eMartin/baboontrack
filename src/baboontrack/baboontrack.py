@@ -20,7 +20,7 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, save_dict_as_csv, zip_folder
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, save_dict_as_csv, zip_folder, get_value_with_precision
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 
@@ -115,7 +115,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             detection['id_score'] = 0
         detection['det'] = int(detection['category'])-1
         detection['det_score'] = detection['conf']
-        detection['visibility'] = vis
+        detection['visibility'] = get_value_with_precision(vis)
         # Remove the normalized keys
         del detection['category']
         del detection['conf']
@@ -244,6 +244,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
         det_results.append(det_result)
         if display_fct is not None:
             display_fct(frame, det_result)
+    progress_bar(len(my_video), len(my_video), 'Detection and Tracking done in %ds with %d tracks' % (time.time() - start_time, track_id), log=log, completed=True)
         
     # Saving
     ## MOT format
