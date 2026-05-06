@@ -197,9 +197,6 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
     # Loop over the video frames
     print_and_log('Processing video %s' % (my_video.path), log=log)
     for idx, frame in enumerate(my_video):
-        if idx==100:
-            break
-        # Initialize the model on the first frame
         if idx == 0:
             print_and_log('Video resolution: %s' % (str(frame.shape)), log=log)
 
@@ -259,10 +256,10 @@ def classify(detection_dict, my_video, output_path, log=None):
     ## Check if the output file already exists
     output_file = os.path.join(output_path, 'classification_results.json')
     if os.path.exists(output_file):
-        print_and_log('Output file %s already exists. Skipping classification.' % (output_file), log=log)
-        return output_file
+        print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
+        return load_json_file(output_file)
     ## Classification names
-    classes = ["Non Identified"]
+    classes = ["NoID"]
     
     ## Check if detection_dict is filepath or dict
     if isinstance(detection_dict, str):
@@ -338,9 +335,11 @@ def main(args, log=None):
         my_video.plot_annotations(
             classification_dict['detections'],
             os.path.join(args.output, 'video_demo.mp4'),
+            max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=classification_dict['detection_classes'],
             classification_classes=classification_dict['classification_classes'],
+            del_imgs=args.del_imgs,
             log=log
         )
         if check_gui_stop(log=log): return 0

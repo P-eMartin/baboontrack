@@ -10,6 +10,7 @@ from .ffmpeg_utils import get_ffmpeg_codec, create_video
 import time
 import subprocess
 import re
+import shutil
 
 from .io_utils import progress_bar
 
@@ -225,13 +226,14 @@ class VideoFrameIterator:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return frame
     
-    def plot_annotations(self, annotations, output_path, thickness=None, fontscale=None, display_fct=None, classification_classes=None, detection_classes=None, bbox_format='xywh', bbox_normalized=True, log=None):
+    def plot_annotations(self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None, classification_classes=None, detection_classes=None, bbox_format='xywh', bbox_normalized=True, font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, log=None):
         '''
         Plot the annotations on the video frames and save the video.
 
         Args:
             annotations: list of dicts, the annotations to plot. Each dict should contain 'bbox', 'track_id', 'id', 'id_score',  'det' and 'det_score' keys.
             output_path: str, the path to save the annotated video
+            max_res: int, the maximum resolution of the output video (default None)
             bbox_color_dict: dict, the color to use for plotting the annotations (default None)
             thickness: int, the thickness of the annotation lines (default 1)
             fontscale: float, the scale of the font (default None)
@@ -240,6 +242,8 @@ class VideoFrameIterator:
             detection_classes: list, the detection classes (default None)
             bbox_format: str, the format of the bounding box coordinates (default 'xywh')
             bbox_normalized: bool, whether the bounding box coordinates are normalized (default True)
+            font: int, the font to use for the text (default cv2.FONT_HERSHEY_SIMPLEX)
+            del_imgs: bool, whether to delete the annotated images after creating the video (default False)
             log: logging.Logger, the logger to log the information (default None)
 
         Returns:
@@ -273,6 +277,7 @@ class VideoFrameIterator:
         if len(os.listdir(output_folder)) != self.length:
             print_and_log("Plotting annotations on video %s..." % (self.path), log=log)
             start_time = time.time()
+            # Loop over the video frames and plot the annotations
             for idx, frame in enumerate(self):
                 elapsed_time = time.time() - start_time
                 progress_bar(
@@ -280,21 +285,27 @@ class VideoFrameIterator:
                     self.length, 
                     title="Plotting annotations on video %s%s" % (
                         os.path.basename(self.path),
-                        " (%ds left)" % (elapsed_time/(idx+1)*(self.length-idx-1)) if idx > 0 else ""
+                        " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                     ), 
                     log=log
                 )
-                # Get the annotations for the current frame
-                frame_annotations = annotations[idx] if idx < len(annotations) else []
+                ## Resize wrt maximum resolution
+                if max_res is not None:
+                    h, w = frame.shape[:2]
+                    if max(h, w) > max_res:
+                        scale = max_res / max(h, w)
+                        frame = cv2.resize(frame, (int(w*scale), int(h*scale)))
                 image_size = frame.shape[:2]
+                ## Set thickness and fontscale based on the image size
                 if idx == 0:
                     if thickness is None:
                         thickness = max(1, int(round(0.001 * (image_size[0] + image_size[1]) / 2)))
                     if fontscale is None:
-                        fontscale = max(0.5, 0.0005 * (image_size[0] + image_size[1]) / 2)
-                # Plot the annotations on the frame
+                        fontscale = max(0.35, 0.0005 * (image_size[0] + image_size[1]) / 3)                
+                ## Plot the annotations on the frame
+                frame_annotations = annotations[idx] if idx < len(annotations) else []
                 for ann in frame_annotations:
-                    bbox = ann['bbox']
+                    bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
                     track_id = ann['track_id']
                     det = detection_classes[ann['det']] if detection_classes else ann['det']
                     det_score = ann['det_score']
@@ -308,24 +319,20 @@ class VideoFrameIterator:
                         color_id = classification_color_dict[class_id]
                     else:
                         color_id = (255, 0, 0) # default color is blue
-                    if bbox_normalized:
-                        bbox2 = [int(bbox[0]*image_size[1]), int(bbox[1]*image_size[0]), int(bbox[2]*image_size[1]), int(bbox[3]*image_size[0])]
-                    else:
-                        bbox2 = bbox
-                    if bbox_format == 'xywh':
-                        bbox3 = [bbox2[0], bbox2[1], bbox2[0]+bbox2[2], bbox2[1]+bbox2[3]]
-                    elif bbox_format == 'xyxy':
-                        bbox3 = bbox2
-                    cv2.rectangle(frame, (bbox3[0], bbox3[1]), (bbox3[2], bbox3[3]), color_det, thickness)
-                    # Det score and Track ID
-                    cv2.putText(frame, '%s (%.2f) Track %d' % (det, det_score, track_id), (bbox3[0], bbox3[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, fontscale, color_det, thickness)
-                    # Class ID and Class ID score
-                    cv2.putText(frame, '%s (%.2f)' % (class_id, id_score), (bbox3[0], bbox3[1] - 30), cv2.FONT_HERSHEY_SIMPLEX, fontscale, color_id, thickness)
+                    cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
+                    # Det score and Track ID - top of the box
+                    text = ('%s (%.2f) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
+                    spacing = int(thickness*1.5)
+                    txt_w, txt_h = write_text(frame, text, (bbox[0], bbox[1] - spacing), fontscale, color_bg=color_det, thickness=thickness, font=font)
+                    # Class ID and Class ID score - above the det text
+                    text = ('%s (%.2f)' % (class_id, id_score)).replace('(0.', '(.').replace('(-0.', '(-.')
+                    write_text(frame, text, (bbox[0], bbox[1] - 4*spacing - txt_h), fontscale, color_bg=color_id, thickness=thickness, font=font)
                 # Save the annotated frame
-                cv2.imwrite(os.path.join(output_folder, '%06d.png' % idx), frame)
+                cv2.imwrite(os.path.join(output_folder, '%d.png' % idx), frame)
                 # Call the display function if provided
                 if display_fct is not None:
                     display_fct(frame)
+            progress_bar(self.length, self.length, title="Plotting annotations on video %s... Done in %.2f seconds." % (os.path.basename(self.path), time.time() - start_time), completed=True, log=log)
         else:
             print_and_log("Annotated frames already exist for video %s. Skipping plotting." % (self.path), log=log)
 
@@ -337,10 +344,95 @@ class VideoFrameIterator:
             codec=get_ffmpeg_codec(log=log),
             log=log,
         )
+        if del_imgs:
+            # Use shutil.rmtree to delete the folder checking it contains only expected images to avoid deleting important files by mistake
+            if os.path.exists(output_folder) and os.path.isdir(output_folder):
+                files = os.listdir(output_folder)
+                if all(f.endswith('.png') for f in files):
+                    shutil.rmtree(output_folder)
+                else:
+                    print_and_log("Warning: The folder %s contains files that are not .png images. The folder will not be deleted." % (output_folder), log=log)
+            else:
+                print_and_log("Warning: The folder %s does not exist or is not a directory. The folder will not be deleted." % (output_folder), log=log)
 
         # Reset video
         self.reset_video()
         return 1
+    
+def get_bbox(bbox, bbox_format='xywh', bbox_normalized=True, image_size=None):  
+    '''
+    Get the bounding box coordinates in xyxy format.
+
+    Args:
+        bbox: list, the bounding box coordinates
+        bbox_format: str, the format of the bounding box coordinates (default 'xywh')
+        bbox_normalized: bool, whether the bounding box coordinates are normalized (default True)
+        image_size: tuple, the size of the image (height, width) (default None, required if bbox_normalized is True)
+
+    Returns:
+        list: the bounding box coordinates in xyxy format
+    '''
+    if bbox_format == 'xywh':
+        x1 = bbox[0]
+        y1 = bbox[1]
+        x2 = bbox[0] + bbox[2]
+        y2 = bbox[1] + bbox[3]
+    elif bbox_format == 'xyxy':
+        x1, y1, x2, y2 = bbox
+    else:
+        raise ValueError("Invalid bbox_format %s. Should be 'xywh' or 'xyxy'." % (bbox_format))
+    if bbox_normalized:
+        if image_size is None:
+            raise ValueError("image_size should be provided when bbox_normalized is True.")
+        x1 = int(x1 * image_size[1])
+        y1 = int(y1 * image_size[0])
+        x2 = int(x2 * image_size[1])
+        y2 = int(y2 * image_size[0])
+    return [x1, y1, x2, y2]
+
+    
+def write_text(frame, text, position, fontscale, color_text=None, color_bg=None, thickness=1, font=cv2.FONT_HERSHEY_SIMPLEX):
+    '''
+    Write text on a frame with a background.
+
+    Args:
+        frame: numpy array, the frame to write on
+        text: str, the text to write
+        position: tuple, the position to write the text (x, y)
+        fontscale: float, the scale of the font
+        color_text: tuple, the color of the text (default None, which is white if color_bg is None or dark, and black if color_bg is light)
+        color_bg: tuple, the color of the background (default None, which is transparent)
+        thickness: int, the thickness of the text (default 1)
+        font: int, the font to use (default cv2.FONT_HERSHEY_SIMPLEX)
+    Returns:
+        numpy array: the frame with the text written on it
+    '''
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, fontscale, thickness)
+    x, y = position
+    
+    if color_bg is not None:
+        # Rectangle coordinates
+        ## Add a bit of padding for visual centering and adjust y to better center the text vertically
+        pad = int(0.1 * text_height)
+        rect_x1 = x - pad
+        rect_y1 = y - text_height - baseline - pad
+        rect_x2 = x + text_width + pad
+        rect_y2 = y + pad
+        text_height+= 2*pad
+        y-= int(baseline/2)
+        cv2.rectangle(frame, (rect_x1, rect_y1), (rect_x2, rect_y2), color_bg, -1)
+    if color_text is None:
+        if color_bg is not None:
+            # If the background color is light, use black text, otherwise use white text
+            if np.mean(color_bg) > 127:
+                color_text = (0, 0, 0)
+            else:
+                color_text = (255, 255, 255)
+        else:
+            color_text = (255, 255, 255)
+    cv2.putText(frame, text, (x, y), font, fontscale, color_text, thickness)
+    return text_width, text_height
+
     
 def get_colormap_dict(classes, colormap=cv2.COLORMAP_VIRIDIS):
     '''

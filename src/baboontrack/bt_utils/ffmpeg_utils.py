@@ -14,7 +14,7 @@ def get_ffmpeg_codecs(log=None):
         output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True)
         codecs = []
         for line in output.split('\n'):
-            if 'DEV.LS' in line:
+            if 'DEV' in line:
                 codecs.append(line.split()[1])
         return codecs
     except subprocess.CalledProcessError as e:
@@ -44,6 +44,8 @@ def get_ffmpeg_codec(log=None):
             return 'libx265'
         elif 'h265' in codecs:
             return 'h265'
+        elif 'hevc' in codecs:
+            return 'hevc'
         elif 'libx264' in codecs:
             return 'libx264'
         elif 'h264' in codecs:
