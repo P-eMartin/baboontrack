@@ -158,10 +158,10 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
         for det in dets:
             mot_dict['# frame_id'].append(idx+1)
             mot_dict['track_id'].append(det['track_id']+1)
-            mot_dict['x'].append(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0])
-            mot_dict['y'].append(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1])
-            mot_dict['w'].append(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2])
-            mot_dict['h'].append(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3])
+            mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
+            mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
+            mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
+            mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
             mot_dict['not ignored'].append(det['det_score'])
             mot_dict['class_id'].append(det['id']+1)
             mot_dict['visibility'].append(det['visibility'])
@@ -213,7 +213,8 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
     print_and_log('Processing video %s' % (my_video.path), log=log)
     for idx, frame in enumerate(my_video):
         if idx == 0:
-            print_and_log('Video resolution: %s' % (str(frame.shape)), log=log)
+            image_size = frame.shape[:2][::-1]
+            print_and_log('Video resolution: %s' % (str(image_size)), log=log)
 
         ## Progress bar with estimated time remaining
         elapsed_time = time.time() - start_time
@@ -231,7 +232,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
         det_result = model.generate_detections_one_image(frame, detection_threshold=score)['detections'] # image_id=idx
 
         ## Assign track_ids
-        track_id = process_detections(det_result, last_tracks, track_id, frame.shape[:2], score, iou_threshold=0.3, default_class_id=0)
+        track_id = process_detections(det_result, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=0)
 
         ## Update Tracking
         if len(tracking_buffer) > tracking_size:
@@ -246,7 +247,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
         
     # Saving
     ## MOT format
-    save_mot_format(det_results, os.path.join(output_path, 'detection_mot'), image_size=frame.shape[:2])
+    save_mot_format(det_results, os.path.join(output_path, 'detection_mot'), image_size=image_size, labels=["NoID"])
 
     ## JSON format
     output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh'}
@@ -292,7 +293,7 @@ def classify(detection_dict, my_video, output_path, log=None):
     classification_dict['classification_classes'] = classes
     save_json_file(classification_dict, output_file)
     ## MOT format (frame_id, track_id, x, y, w, h, conf, class_id, visibility)
-    save_mot_format(classification_dict['detections'], os.path.join(output_path, 'classification_mot'), image_size=None)
+    save_mot_format(classification_dict['detections'], os.path.join(output_path, 'classification_mot'), image_size=None, labels=classes)
 
     return classification_dict
 
