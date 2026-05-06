@@ -7,6 +7,7 @@ import sys
 import datetime
 import subprocess
 import csv
+import zipfile
 
 '''
 Print and log functions
@@ -186,6 +187,22 @@ def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fi
         for i in range(num_rows):
             row = [(all_fields[key][i] if i < len(all_fields[key]) else '') for key in headers]
             writer.writerow(row)
+
+def zip_folder(folder_to_zip, output_file):
+    '''
+    Zip a folder.
+    Args:
+        folder_to_zip: str, the path to the folder to zip
+        output_file: str, the path to save the zip file
+    
+    Returns:
+        int, 1 if the folder was properly zipped
+    '''
+    with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(folder_to_zip):
+            for file in files:
+                zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.dirname(output_file)))
+    return 1
 
 '''
 Miscellaneous functions

@@ -20,10 +20,9 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, save_dict_as_csv
-from .bt_utils.plt_utils import plot_signals_video_different_fps, get_color_map
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, save_dict_as_csv, zip_folder
 from .bt_utils.json_utils import save_json_file, load_json_file
-from .bt_utils.img_utils import get_contour_from_bbox, VideoFrameIterator, enforce_min_bbox
+from .bt_utils.img_utils import VideoFrameIterator
 
 # Help variables
 from .help import *
@@ -75,6 +74,7 @@ def compute_iou(boxA, boxB, image_size):
 def process_detections(detections, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=None, log=None):
     '''
     Process each detection and assign a track ID based on the last tracks and IoU threshold.
+    Visibility is set to 1 if no overlap with other tracks, and decreases as the IoU with other tracks increases.
 
     Args:
         detections: list of dict, the detections for the current frame
@@ -97,10 +97,12 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             continue
         # Assign track ID based on IoU with last tracks
         best_iou = 0
+        vis = 1
         best_track_id = None
         for track in last_tracks:
             iou = compute_iou(detection['bbox'], track['bbox'], image_size)
             if iou > best_iou:
+                vis = 1 - best_iou
                 best_iou = iou
                 best_track_id = track['track_id']
         if best_iou > iou_threshold:
@@ -113,6 +115,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             detection['id_score'] = 0
         detection['det'] = int(detection['category'])-1
         detection['det_score'] = detection['conf']
+        detection['visibility'] = vis
         # Remove the normalized keys
         del detection['category']
         del detection['conf']
@@ -123,40 +126,52 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
 
     return track_id
 
-def save_mot_format(detection_dict, output_path):
+def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     '''
     Save the detection and tracking results in MOT format.
 
     Args:
         detection_dict: dict, the detection and tracking results
-        output_path: str, the path to save the output file
+        output_path: str, the path to save the output files
+        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
+        labels: list of str, the list of labels to save in a separate file (default None)
 
     Returns:
         int, 1 if the file was properly saved
     '''
+    # Create the MOT format dictionary - leading # in the first key so it is considered as comment in the MOT format
+    folder_to_zip = os.path.join(output_path, 'gt')
+    os.makedirs(folder_to_zip, exist_ok=True)
     mot_dict = {
-        'frame_id': [],
+        '# frame_id': [],
         'track_id': [],
         'x': [],
         'y': [],
         'w': [],
         'h': [],
-        'score': [],
+        'not ignored': [],
         'class_id': [],
-        'id_score': []
+        'visibility': []
     }
+    # Loop over the detection_dict and fill the MOT format dictionary
     for idx, dets in enumerate(detection_dict):
         for det in dets:
-            mot_dict['frame_id'].append(idx)
-            mot_dict['track_id'].append(det['track_id'])
-            mot_dict['x'].append(det['bbox'][0])
-            mot_dict['y'].append(det['bbox'][1])
-            mot_dict['w'].append(det['bbox'][2])
-            mot_dict['h'].append(det['bbox'][3])
-            mot_dict['score'].append(det['det_score'])
-            mot_dict['class_id'].append(det['id'])
-            mot_dict['id_score'].append(det['id_score'])
-    save_dict_as_csv(mot_dict, output_path)
+            mot_dict['# frame_id'].append(idx+1)
+            mot_dict['track_id'].append(det['track_id']+1)
+            mot_dict['x'].append(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0])
+            mot_dict['y'].append(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1])
+            mot_dict['w'].append(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2])
+            mot_dict['h'].append(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3])
+            mot_dict['not ignored'].append(det['det_score'])
+            mot_dict['class_id'].append(det['id']+1)
+            mot_dict['visibility'].append(det['visibility'])
+    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'))
+    # Save labels if provided
+    if labels is not None:
+        with open(os.path.join(folder_to_zip, 'labels.txt'), 'w') as f:
+            for label in labels:
+                f.write('%s\n' % (label))
+    zip_folder(folder_to_zip, os.path.join(output_path, 'mot.zip'))
     return 1
 
 def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log=None, display_fct=None):
@@ -231,7 +246,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
         
     # Saving
     ## MOT format
-    save_mot_format(det_results, os.path.join(output_path, 'results_mot.csv'))
+    save_mot_format(det_results, os.path.join(output_path, 'detection_mot'), image_size=frame.shape[:2])
 
     ## JSON format
     output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh'}
@@ -277,7 +292,7 @@ def classify(detection_dict, my_video, output_path, log=None):
     classification_dict['classification_classes'] = classes
     save_json_file(classification_dict, output_file)
     ## MOT format (frame_id, track_id, x, y, w, h, conf, class_id, visibility)
-    save_mot_format(classification_dict['detections'], os.path.join(output_path, 'classification_results_mot.csv'))
+    save_mot_format(classification_dict['detections'], os.path.join(output_path, 'classification_mot'), image_size=None)
 
     return classification_dict
 
