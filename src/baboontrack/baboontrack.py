@@ -143,7 +143,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     folder_to_zip = os.path.join(output_path, 'gt')
     os.makedirs(folder_to_zip, exist_ok=True)
     mot_dict = {
-        '# frame_id': [],
+        'frame_id': [],
         'track_id': [],
         'x': [],
         'y': [],
@@ -157,7 +157,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     # Loop over the detection_dict and fill the MOT format dictionary
     for idx, dets in enumerate(detection_dict):
         for det in dets:
-            mot_dict['# frame_id'].append(idx+1)
+            mot_dict['frame_id'].append(idx+1)
             mot_dict['track_id'].append(det['track_id']+1)
             mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
             mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
@@ -167,7 +167,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
             mot_dict['class_id'].append(int(det['id']+1))
             mot_dict['visibility'].append(det['visibility'])
             mot_dict['skipped'].append(0)
-    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'))
+    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'), without_headers=True)
     # Save labels if provided
     if labels is not None:
         with open(os.path.join(folder_to_zip, 'labels.txt'), 'w') as f:

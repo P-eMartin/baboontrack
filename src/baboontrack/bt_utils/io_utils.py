@@ -163,7 +163,7 @@ def progress_bar(count, total, title, completed=0, log=None):
 '''
 Filesystem functions
 '''
-def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fields_after=None):
+def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fields_after=None, without_headers=False):
     '''
     Save a dictionary as a csv file.
 
@@ -172,6 +172,7 @@ def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fi
         save_path: str, the path to save the csv file
         extra_fields_before: dict, the extra fields to add before the dictionary keys (default None)
         extra_fields_after: dict, the extra fields to add after the dictionary keys (default None)
+        without_headers: bool, whether to exclude headers from the csv file (default False)
     '''
     extra_fields_before = extra_fields_before or {}
     extra_fields_after = extra_fields_after or {}
@@ -182,7 +183,8 @@ def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fi
 
     with open(save_path, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(headers)
+        if not without_headers:
+            writer.writerow(headers)
 
         for i in range(num_rows):
             row = [(all_fields[key][i] if i < len(all_fields[key]) else '') for key in headers]
