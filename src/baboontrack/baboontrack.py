@@ -151,7 +151,8 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
         'h': [],
         'not ignored': [],
         'class_id': [],
-        'visibility': []
+        'visibility': [],
+        'skipped': []
     }
     # Loop over the detection_dict and fill the MOT format dictionary
     for idx, dets in enumerate(detection_dict):
@@ -162,9 +163,10 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
             mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
             mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
             mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
-            mot_dict['not ignored'].append(det['det_score'])
-            mot_dict['class_id'].append(det['id']+1)
+            mot_dict['not ignored'].append(1)
+            mot_dict['class_id'].append(int(det['id']+1))
             mot_dict['visibility'].append(det['visibility'])
+            mot_dict['skipped'].append(0)
     save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'))
     # Save labels if provided
     if labels is not None:
@@ -174,7 +176,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     zip_folder(folder_to_zip, os.path.join(output_path, 'mot.zip'))
     return 1
 
-def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log=None, display_fct=None):
+def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -206,7 +208,18 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
     start_time = time.time()
 
     ## Megadetector
-    model = run_detector.load_detector('MDV5B', detector_options={'device':device}) # 1452MB on gpu
+    if model_path is not None:
+        if os.path.exists(model_path):
+            print_and_log('Loading Megadetector model from %s' % (model_path), log=log)
+        else:
+            print_and_log('Megadetector model path %s does not exist. Loading default model.' % (model_path), log=log)
+            model_path = 'MDV5B'
+    else:
+        model_path = 'MDV5B'
+    model = run_detector.load_detector(
+        model_path,
+        detector_options={'device':device}
+    ) # 1452MB on gpu
     det_classes = ["animal","person","vehicle"]
 
     # Loop over the video frames
@@ -247,11 +260,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, log
     progress_bar(len(my_video), len(my_video), 'Detection and Tracking done in %ds with %d tracks' % (time.time() - start_time, track_id), log=log, completed=True)
         
     # Saving
-    ## MOT format
-    save_mot_format(det_results, os.path.join(output_path, 'detection_mot'), image_size=image_size, labels=["NoID"])
-
-    ## JSON format
-    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh'}
+    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size}
     save_json_file(output_results, output_file)
         
     return output_results
@@ -290,11 +299,8 @@ def classify(detection_dict, my_video, output_path, log=None):
     # TODO: implement the classification of the tracks using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
     # Saving
-    ## JSON format
     classification_dict['classification_classes'] = classes
     save_json_file(classification_dict, output_file)
-    ## MOT format (frame_id, track_id, x, y, w, h, conf, class_id, visibility)
-    save_mot_format(classification_dict['detections'], os.path.join(output_path, 'classification_mot'), image_size=None, labels=classes)
 
     return classification_dict
 
@@ -337,6 +343,8 @@ def main(args, log=None):
     )
     if check_gui_stop(log=log): return 0
 
+    classes = ["NoID"]
+
     # Classification
     classification_dict = classify(
         detection_dict,
@@ -345,6 +353,14 @@ def main(args, log=None):
         log=log
     )
     if check_gui_stop(log=log): return 0
+
+    # Save MOT format
+    save_mot_format(
+        classification_dict['detections'],
+        os.path.join(args.output, 'mot'),
+        image_size=classification_dict['image_size'],
+        labels=classes
+    )
 
     # Create the video
     if args.video_demo:
