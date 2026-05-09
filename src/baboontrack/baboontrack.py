@@ -126,6 +126,44 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
 
     return track_id
 
+def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
+    '''
+    Save the detection and tracking results in COCO format.
+
+    Args:
+        detection_dict: dict, the detection and tracking results
+        output_path: str, the path to save the output file
+        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
+        labels: list of str, the list of labels to save in a separate file (default None)
+
+    Returns:
+        int, 1 if the file was properly saved
+    '''
+    # Create the COCO format dictionary
+    coco_list = []
+    # Loop over the detection_dict and fill the COCO format dictionary
+    for idx, dets in enumerate(detection_dict):
+        for det in dets:
+            coco_list.append({
+                'image_id': idx + 1,
+                'category_id': int(det['id'] + 1),
+                'bbox': [
+                    get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
+                    get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
+                    get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
+                    get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
+                ],
+                'score': get_value_with_precision(det['det_score']),
+                'track_id': int(det['track_id'] + 1),
+                'visibility': det['visibility']
+            })
+    os.makedirs(output_path, exist_ok=True)
+    save_json_file(coco_list, os.path.join(output_path, 'annotations.json'))
+    # Save labels if provided
+    if labels is not None:
+        save_json_file(labels, os.path.join(output_path, 'labels.json'))
+    return 1
+
 def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     '''
     Save the detection and tracking results in MOT format.
@@ -358,6 +396,14 @@ def main(args, log=None):
     save_mot_format(
         classification_dict['detections'],
         os.path.join(args.output, 'mot'),
+        image_size=classification_dict['image_size'],
+        labels=classes
+    )
+
+    # Save COCO format
+    save_coco_format(
+        classification_dict['detections'],
+        os.path.join(args.output, 'coco'),
         image_size=classification_dict['image_size'],
         labels=classes
     )
