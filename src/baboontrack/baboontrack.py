@@ -153,9 +153,12 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
                     get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                     get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                 ],
-                'score': get_value_with_precision(det['det_score']),
-                'track_id': int(det['track_id'] + 1),
-                'visibility': det['visibility']
+                'attributes': {
+                    'name': 'NoID',
+                    'score': get_value_with_precision(det['det_score']),
+                    'track_id': int(det['track_id'] + 1),
+                    'visibility': det['visibility'],
+                }
             })
     os.makedirs(output_path, exist_ok=True)
     save_json_file(coco_list, os.path.join(output_path, 'annotations.json'))

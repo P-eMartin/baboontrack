@@ -30,5 +30,5 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/P-eMartin/baboontrack"
-Issues = "https://github.com/P-eMartin/baboontrack/issues"
+Homepage = "https://github.com/P-eMartin/packaging_baboontrack"
+Issues = "https://github.com/P-eMartin/packaging_baboontrack/issues"
