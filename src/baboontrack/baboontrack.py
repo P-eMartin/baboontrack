@@ -89,33 +89,59 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
         int, the updated track ID after assignment
     '''
     to_delete = []
+    matches = []
     for idx, detection in enumerate(detections):
         # Remove detections with low score
         if detection['conf'] < score:
             print_and_log('Detection with low score found (frame %d): %f' % (idx, detection['conf']), log=log)
             to_delete.append(idx)
             continue
-        # Assign track ID based on IoU with last tracks
+        # Match track ID based on IoU with last tracks
         best_iou = 0
-        vis = 1
-        best_track_id = None
         for track in last_tracks:
             iou = compute_iou(detection['bbox'], track['bbox'], image_size)
             if iou > best_iou:
-                vis = 1 - best_iou
+                matches.append({'det_idx':idx, 'track_id': track['track_id'], 'iou': iou})
                 best_iou = iou
-                best_track_id = track['track_id']
-        if best_iou > iou_threshold:
-            detection['track_id'] = best_track_id
-        else:
+
+    # Sort by best IoU first
+    matches = sorted(matches, key=lambda x: x['iou'], reverse=True)
+
+    assigned_dets = set()
+    assigned_tracks = set()
+
+    # Assign globally best matches
+    for match in matches:
+        det_idx = match['det_idx']
+        track_id_match = match['track_id']
+
+        if det_idx in assigned_dets or track_id_match in assigned_tracks:
+            continue
+
+        detections[det_idx]['track_id'] = track_id_match
+        # Visibility
+        detections[det_idx]['visibility'] = get_value_with_precision(1 - match['iou'])
+
+        assigned_dets.add(det_idx)
+        assigned_tracks.add(track_id_match)
+
+    # Assign new track IDs to unmatched detections
+    for idx, detection in enumerate(detections):
+
+        if det_idx in to_delete:
+            continue
+
+        if 'track_id' not in detection:
             detection['track_id'] = track_id
             track_id += 1
+
         if default_class_id is not None:
             detection['id'] = default_class_id
             detection['id_score'] = 0
+        
         detection['det'] = int(detection['category'])-1
         detection['det_score'] = detection['conf']
-        detection['visibility'] = get_value_with_precision(vis)
+        detection['visibility'] = get_value_with_precision(1-max([match['iou'] for match in matches if match['det_idx'] == idx and match['track_id'] != detection['track_id']], default=0))
         # Remove the normalized keys
         del detection['category']
         del detection['conf']
