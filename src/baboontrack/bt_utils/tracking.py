@@ -1,5 +1,4 @@
 import torch
-import torchreid
 import cv2
 import numpy as np
 from torchvision import transforms
@@ -9,6 +8,7 @@ from .deep_sort.tracker import Tracker
 
 class ReIDModel:
     def __init__(self, device):
+        import torchreid
         self.model = torchreid.models.build_model(
             name='osnet_x0_25',
             num_classes=1000,
