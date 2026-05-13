@@ -20,9 +20,10 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, save_dict_as_csv, zip_folder, get_value_with_precision
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, save_mot_format, save_coco_format
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
+from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 
 # Help variables
 from .help import *
@@ -152,96 +153,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
 
     return track_id
 
-def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
-    '''
-    Save the detection and tracking results in COCO format.
 
-    Args:
-        detection_dict: dict, the detection and tracking results
-        output_path: str, the path to save the output file
-        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
-        labels: list of str, the list of labels to save in a separate file (default None)
-
-    Returns:
-        int, 1 if the file was properly saved
-    '''
-    # Create the COCO format dictionary
-    coco_list = []
-    # Loop over the detection_dict and fill the COCO format dictionary
-    for idx, dets in enumerate(detection_dict):
-        for det in dets:
-            coco_list.append({
-                'image_id': idx + 1,
-                'category_id': int(det['id'] + 1),
-                'bbox': [
-                    get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
-                    get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
-                    get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
-                    get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
-                ],
-                'attributes': {
-                    'name': 'NoID',
-                    'score': get_value_with_precision(det['det_score']),
-                    'track_id': int(det['track_id'] + 1),
-                    'visibility': det['visibility'],
-                }
-            })
-    os.makedirs(output_path, exist_ok=True)
-    save_json_file(coco_list, os.path.join(output_path, 'annotations.json'))
-    # Save labels if provided
-    if labels is not None:
-        save_json_file(labels, os.path.join(output_path, 'labels.json'))
-    return 1
-
-def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
-    '''
-    Save the detection and tracking results in MOT format.
-
-    Args:
-        detection_dict: dict, the detection and tracking results
-        output_path: str, the path to save the output files
-        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
-        labels: list of str, the list of labels to save in a separate file (default None)
-
-    Returns:
-        int, 1 if the file was properly saved
-    '''
-    # Create the MOT format dictionary - leading # in the first key so it is considered as comment in the MOT format
-    folder_to_zip = os.path.join(output_path, 'gt')
-    os.makedirs(folder_to_zip, exist_ok=True)
-    mot_dict = {
-        'frame_id': [],
-        'track_id': [],
-        'x': [],
-        'y': [],
-        'w': [],
-        'h': [],
-        'not ignored': [],
-        'class_id': [],
-        'visibility': [],
-        'skipped': []
-    }
-    # Loop over the detection_dict and fill the MOT format dictionary
-    for idx, dets in enumerate(detection_dict):
-        for det in dets:
-            mot_dict['frame_id'].append(idx+1)
-            mot_dict['track_id'].append(det['track_id']+1)
-            mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
-            mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
-            mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
-            mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
-            mot_dict['not ignored'].append(1)
-            mot_dict['class_id'].append(int(det['id']+1))
-            mot_dict['visibility'].append(det['visibility'])
-            mot_dict['skipped'].append(0)
-    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'), without_headers=True)
-    # Save labels if provided
-    if labels is not None:
-        with open(os.path.join(folder_to_zip, 'labels.txt'), 'w') as f:
-            for label in labels:
-                f.write('%s\n' % (label))
-    zip_folder(folder_to_zip, os.path.join(output_path, 'mot.zip'))
-    return 1
 
 def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None):
     '''
@@ -332,6 +244,58 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, dis
         
     return output_results
 
+def track(my_video, detection_dict, output_path, device='cpu', tracking_size=30, score=0.5, log=None):
+    '''
+    Track the Baboons in the video using the detection results.
+
+    Args:
+        my_video: VideoFrameIterator, the video to process
+        detection_dict: dict, the detection results
+        output_path: str, the path to save the output file
+        device: str, the device to use for the tracking
+        tracking_size: int, the size of the tracking buffer in number of frames (default 30)
+        score: float, the minimum detection score (default 0.5)
+        log: logger, the logger to print the information (default None)
+
+    Returns:
+        dict, the tracking results
+    '''
+    # Initialization
+    ## Check if the output file already exists
+    output_file = os.path.join(output_path, 'tracking_results.json')
+    if os.path.exists(output_file):
+        print_and_log('Output file %s already exists. Skipping tracking. Loading existing file.' % (output_file), log=log)
+        return load_json_file(output_file)
+    start_time = time.time()
+    ## Feature extractor
+    feat_model = ReIDModel(device=device)
+    ## Tracker
+    tracker = init_tracker(max_cosine_distance=0.5, nn_budget=100, max_iou_distance=0.6, max_age=tracking_size, n_init=3)
+
+    # Loop over the video frames and detection results
+    for idx, (frame, det_result) in enumerate(zip(my_video, detection_dict['detections'])):
+        ## Progress bar with estimated time remaining
+        elapsed_time = time.time() - start_time
+        progress_bar(
+            idx,
+            len(my_video),
+            'Tracking Progress with currently %d tracks.%s' % (
+                len(tracker.tracks),
+                '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx-1)) if idx else ''
+            ),
+            log=log
+        )
+
+        ## Update tracker with the detection results
+        update_tracker(tracker, frame, feat_model, det_result)
+
+    progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, len(tracker.tracks)), log=log, completed=True)
+
+    # Saving
+    output_results = {'tracks': [track.to_dict() for track in tracker.tracks], 'format': 'xywh', 'image_size': detection_dict['image_size']}
+    save_json_file(output_results, output_file)
+    return output_results
+
 def classify(detection_dict, my_video, output_path, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
@@ -397,7 +361,7 @@ def main(args, log=None):
     my_video = VideoFrameIterator(args.input_video, log=log)
     # my_video.check_video()
 
-    # Detection and tracking
+    # Detection
     ## TODO: 2 steps:
     ##          - first detection of all
     ##          - then tracking (https://github.com/abewley/sort, https://github.com/nwojke/deep_sort)
@@ -411,11 +375,24 @@ def main(args, log=None):
         log=log,
         display_fct=args.display_fct
     )
-    if check_gui_stop(log=log): return 0
+    
+
+    # Tracking
+    tracking_dict = track(
+        my_video,
+        detection_dict,
+        args.output,
+        device=args.device,
+        tracking_size=args.tracking_size,
+        score=args.det_score,
+        log=log,
+        display_fct=args.display_fct
+    )
 
     classes = ['NoID']
 
     # Classification
+    if check_gui_stop(log=log): return 0
     classification_dict = classify(
         detection_dict,
         my_video,

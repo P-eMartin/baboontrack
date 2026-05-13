@@ -8,6 +8,7 @@ import datetime
 import subprocess
 import csv
 import zipfile
+from .json_utils import save_json_file
 
 '''
 Print and log functions
@@ -204,6 +205,100 @@ def zip_folder(folder_to_zip, output_file):
         for root, dirs, files in os.walk(folder_to_zip):
             for file in files:
                 zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.dirname(output_file)))
+    return 1
+
+'''
+Saving formats
+'''
+def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
+    '''
+    Save the detection and tracking results in COCO format.
+
+    Args:
+        detection_dict: dict, the detection and tracking results
+        output_path: str, the path to save the output file
+        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
+        labels: list of str, the list of labels to save in a separate file (default None)
+
+    Returns:
+        int, 1 if the file was properly saved
+    '''
+    # Create the COCO format dictionary
+    coco_list = []
+    # Loop over the detection_dict and fill the COCO format dictionary
+    for idx, dets in enumerate(detection_dict):
+        for det in dets:
+            coco_list.append({
+                'image_id': idx + 1,
+                'category_id': int(det['id'] + 1),
+                'bbox': [
+                    get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
+                    get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
+                    get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
+                    get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
+                ],
+                'attributes': {
+                    'name': 'NoID',
+                    'score': get_value_with_precision(det['det_score']),
+                    'track_id': int(det['track_id'] + 1),
+                    'visibility': det['visibility'],
+                }
+            })
+    os.makedirs(output_path, exist_ok=True)
+    save_json_file(coco_list, os.path.join(output_path, 'annotations.json'))
+    # Save labels if provided
+    if labels is not None:
+        save_json_file(labels, os.path.join(output_path, 'labels.json'))
+    return 1
+
+def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
+    '''
+    Save the detection and tracking results in MOT format.
+
+    Args:
+        detection_dict: dict, the detection and tracking results
+        output_path: str, the path to save the output files
+        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
+        labels: list of str, the list of labels to save in a separate file (default None)
+
+    Returns:
+        int, 1 if the file was properly saved
+    '''
+    # Create the MOT format dictionary - leading # in the first key so it is considered as comment in the MOT format
+    folder_to_zip = os.path.join(output_path, 'gt')
+    os.makedirs(folder_to_zip, exist_ok=True)
+    mot_dict = {
+        'frame_id': [],
+        'track_id': [],
+        'x': [],
+        'y': [],
+        'w': [],
+        'h': [],
+        'not ignored': [],
+        'class_id': [],
+        'visibility': [],
+        'skipped': []
+    }
+    # Loop over the detection_dict and fill the MOT format dictionary
+    for idx, dets in enumerate(detection_dict):
+        for det in dets:
+            mot_dict['frame_id'].append(idx+1)
+            mot_dict['track_id'].append(det['track_id']+1)
+            mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
+            mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
+            mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
+            mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
+            mot_dict['not ignored'].append(1)
+            mot_dict['class_id'].append(int(det['id']+1))
+            mot_dict['visibility'].append(det['visibility'])
+            mot_dict['skipped'].append(0)
+    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'), without_headers=True)
+    # Save labels if provided
+    if labels is not None:
+        with open(os.path.join(folder_to_zip, 'labels.txt'), 'w') as f:
+            for label in labels:
+                f.write('%s\n' % (label))
+    zip_folder(folder_to_zip, os.path.join(output_path, 'mot.zip'))
     return 1
 
 '''
