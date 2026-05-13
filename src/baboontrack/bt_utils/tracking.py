@@ -162,7 +162,8 @@ def update_tracker(tracker, frame, feat_model, det_list):
         det_list: list, a list of detection dictionaries, each containing a 'bbox' key with a bounding box in (x, y, w, h) format in percentage of the frame size
         
     Returns:
-        tracker: Tracker, the updated tracker
+        current_tracks: list, the updated tracks
+        max_track_id: int, the maximum track ID
     '''
     image_size = frame.shape[1], frame.shape[0]
     bboxes = []
@@ -178,3 +179,18 @@ def update_tracker(tracker, frame, feat_model, det_list):
     detections = [Detection(bbox, 1.0, feat) for bbox, feat in zip(bboxes, features)]
     tracker.predict()
     tracker.update(detections)
+
+    current_tracks = []
+    max_track_id = -1
+    for track in tracker.tracks:
+        if not track.is_confirmed() or track.time_since_update > 1:
+            continue
+        x, y, w, h = track.to_tlwh()
+        track_id = track.track_id
+        max_track_id = max(max_track_id, track_id)
+        # Back to percentage coordinates
+        current_tracks.append({
+            'track_id': track.track_id,
+            'bbox': [float(x/image_size[0]), float(y/image_size[1]), float(w/image_size[0]), float(h/image_size[1])]
+        })
+    return current_tracks, max_track_id

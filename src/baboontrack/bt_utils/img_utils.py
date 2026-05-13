@@ -264,12 +264,12 @@ class VideoFrameIterator:
         # Color dictionaries
         ## Detection classes based on viridis colormap
         if detection_classes is not None:
-            detection_color_dict = get_colormap_dict(detection_classes, cv2.COLORMAP_VIRIDIS)
+            detection_color_dict = get_colormap_dict(detection_classes, cv2.COLORMAP_TURBO, cycle_size=20)
         else:
             detection_color_dict = None
         ## Classification classes based on turbo colormap
         if classification_classes is not None:
-            classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_TURBO)
+            classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_VIRIDIS)
         else:
             classification_color_dict = None
 
@@ -321,11 +321,12 @@ class VideoFrameIterator:
                         color_id = (255, 0, 0) # default color is blue
                     cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
                     # Det score and Track ID - top of the box
-                    text = ('%s (%.2f) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
+                    # text = ('%s (%.2g) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
+                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None or 'Track ' in str(det) else 'Track %d' % (track_id)))
                     spacing = int(thickness*1.5)
                     txt_w, txt_h = write_text(frame, text, (bbox[0], bbox[1] - spacing), fontscale, color_bg=color_det, thickness=thickness, font=font)
                     # Class ID and Class ID score - above the det text
-                    text = ('%s (%.2f)' % (class_id, id_score)).replace('(0.', '(.').replace('(-0.', '(-.')
+                    text = (('' if class_id is None else '%s ' % (class_id)) + ('' if id_score is None else '(%.2g)' % (id_score))).replace('(0.', '(.').replace('(-0.', '(-.')
                     write_text(frame, text, (bbox[0], bbox[1] - 4*spacing - txt_h), fontscale, color_bg=color_id, thickness=thickness, font=font)
                 # Save the annotated frame
                 cv2.imwrite(os.path.join(output_folder, '%d.png' % idx), frame)
@@ -434,17 +435,25 @@ def write_text(frame, text, position, fontscale, color_text=None, color_bg=None,
     return text_width, text_height
 
     
-def get_colormap_dict(classes, colormap=cv2.COLORMAP_VIRIDIS):
+def get_colormap_dict(classes, colormap=cv2.COLORMAP_VIRIDIS, cycle_size=None):
     '''
     Get a color dictionary for the given classes based on the given colormap.
     Args:
         classes: list, the list of classes to get the color dictionary for
         colormap: int, the OpenCV colormap to use (default cv2.COLORMAP_VIRIDIS)
+        cycle_size: int, the size of the cycle for the colormap (default None, which is the number of classes)
 
     Returns:
         dict: the color dictionary for the given classes
     '''
-    return dict(zip(classes,map(lambda c: tuple(map(int, c)),cv2.applyColorMap(np.linspace(0, 255, len(classes), dtype=np.uint8)[:, None],colormap).reshape(-1, 3))))
+    if cycle_size is None:
+        cycle_size = len(classes)
+    cycle_size = min(cycle_size, len(classes))
+    # Generate N colors
+    color_values = np.linspace(0, 255, cycle_size, dtype=np.uint8)[:, None]
+    colors = cv2.applyColorMap(color_values, colormap).reshape(-1, 3)
+    colors = [tuple(map(int, c)) for c in colors]
+    return {cls: colors[i % cycle_size] for i, cls in enumerate(classes)}
 
     
 def get_trailer(input_path, N=3):

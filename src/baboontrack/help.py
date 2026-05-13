@@ -37,3 +37,10 @@ Adjust this parameter based on the expected movement and density of Baboons in t
 
 helptext_gui = '''Use the GUI to select the parameters and visualize the results in real-time.
 '''
+
+helptext_tracker_type = '''Type of tracker to use. Default: None.
+Options:
+- "bytetrack": Use ByteTrack for tracking. This is a high-performance tracker that can handle occlusions and missed detections well.
+- "deepsort": Use DeepSORT for tracking. This tracker uses a combination of motion and appearance features for tracking, which can be effective in crowded scenes.
+- None: Tracking based on IoU.
+'''

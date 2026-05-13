@@ -155,7 +155,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
 
 
 
-def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None):
+def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -163,7 +163,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, dis
         my_video: VideoFrameIterator, the video to process
         output_path: str, the path to save the output file
         device: str, the device to use for the detection
-        tracking_size: int, the size of the tracking buffer in number of frames (default 30)
+        tracking_size: int, the size of the tracking buffer in number of frames (default 60)
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
         display_fct: function, the function to display the results in real-time (default None)
@@ -244,7 +244,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=30, score=0.5, dis
         
     return output_results
 
-def track(my_video, detection_dict, output_path, device='cpu', tracking_size=30, score=0.5, log=None):
+def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -256,6 +256,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=30,
         tracking_size: int, the size of the tracking buffer in number of frames (default 30)
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
+        tracker_type: str, the type of tracker to use (default None)
 
     Returns:
         dict, the tracking results
@@ -265,14 +266,32 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=30,
     output_file = os.path.join(output_path, 'tracking_results.json')
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping tracking. Loading existing file.' % (output_file), log=log)
-        return load_json_file(output_file)
+        return output_file
+    
+    ## Check if detection_dict is filepath or dict
+    if isinstance(detection_dict, str):
+        print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
+        detection_dict = load_json_file(detection_dict)
+
     start_time = time.time()
-    ## Feature extractor
-    feat_model = ReIDModel(device=device)
-    ## Tracker
-    tracker = init_tracker(max_cosine_distance=0.5, nn_budget=100, max_iou_distance=0.6, max_age=tracking_size, n_init=3)
+    if tracker_type == "bytetrack":
+        from .bt_utils.bytetrack.byte_tracker import BYTETracker
+        print_and_log('Tracking with ByteTrack', log=log)
+        feat_model = None
+        tracker = BYTETracker()
+    elif tracker_type == "deepsort":
+        ## Feature extractor
+        feat_model = ReIDModel(device=device)
+        ## Tracker
+        tracker = init_tracker(max_cosine_distance=0.5, nn_budget=100, max_iou_distance=0.5, max_age=tracking_size, n_init=0)
+    else:
+        # None - return the detection results without tracking
+        print_and_log('No tracking, just returning detection results', log=log)
+        return detection_dict
 
     # Loop over the video frames and detection results
+    n_tracks = -1
+    all_tracks = []
     for idx, (frame, det_result) in enumerate(zip(my_video, detection_dict['detections'])):
         ## Progress bar with estimated time remaining
         elapsed_time = time.time() - start_time
@@ -280,19 +299,44 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=30,
             idx,
             len(my_video),
             'Tracking Progress with currently %d tracks.%s' % (
-                len(tracker.tracks),
+                n_tracks,
                 '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx-1)) if idx else ''
             ),
             log=log
         )
 
         ## Update tracker with the detection results
-        update_tracker(tracker, frame, feat_model, det_result)
-
-    progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, len(tracker.tracks)), log=log, completed=True)
+        if bytetrack:
+            # Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores
+            bboxes = []
+            for det in det_result:
+                x, y, w, h = det['bbox']
+                x1 = int(x * detection_dict['image_size'][0])
+                y1 = int(y * detection_dict['image_size'][1])
+                x2 = int((x + w) * detection_dict['image_size'][0])
+                y2 = int((y + h) * detection_dict['image_size'][1])
+                bboxes.append([x1, y1, x2, y2])
+            bboxes = np.array(bboxes)
+            scores = np.array([det['det_score'] for det in det_result])
+            _current_tracks = tracker.update(bboxes, scores)
+            # Convert back to (x, y, w, h) format and normalized coordinates
+            current_tracks = []
+            for track in _current_tracks:
+                x1, y1, w, h = track.tlwh
+                tmp = {}
+                tmp['bbox'] = [float(x1 / detection_dict['image_size'][0]), float(y1 / detection_dict['image_size'][1]), float(w / detection_dict['image_size'][0]), float(h / detection_dict['image_size'][1])]
+                tmp['track_id'] = track.track_id
+                tmp['det_score'] = float(track.score)
+                current_tracks.append(tmp)
+            all_tracks.append(current_tracks)
+        else:
+            current_tracks, max_track_id = update_tracker(tracker, frame, feat_model, det_result)
+            n_tracks = max(n_tracks, max_track_id)
+            all_tracks.append(current_tracks)
+    progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, n_tracks), log=log, completed=True)
 
     # Saving
-    output_results = {'tracks': [track.to_dict() for track in tracker.tracks], 'format': 'xywh', 'image_size': detection_dict['image_size']}
+    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': detection_dict['image_size']}
     save_json_file(output_results, output_file)
     return output_results
 
@@ -317,19 +361,29 @@ def classify(detection_dict, my_video, output_path, log=None):
         return load_json_file(output_file)
     ## Classification names
     classes = ['NoID']
+    n_tracks = 0
     
     ## Check if detection_dict is filepath or dict
     if isinstance(detection_dict, str):
-        if not os.path.exists(detection_dict):
-            print_and_log('Error: detection_dict %s must be a file or a dict' % (detection_dict), log=log, to_print=False)
-            raise ValueError('No detection_dict provided.')
         print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
         detection_dict = load_json_file(detection_dict)
     
     classification_dict = copy.deepcopy(detection_dict)
     # TODO: implement the classification of the tracks using a pre-trained classifier and a dictionary with extracted features from the tracks.
+    for dets_per_frame in classification_dict['detections']:
+        # Just assign track_id as the class for now
+        for det in dets_per_frame:
+            track_id = det['track_id']
+            det['det'] = track_id-1
+            n_tracks = max(n_tracks, track_id)
+            if 'det_score' not in det:
+                det['det_score'] = None
+            if 'id' not in det:
+                det['id'] = 0
+            det['id_score'] = None
 
     # Saving
+    classification_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     classification_dict['classification_classes'] = classes
     save_json_file(classification_dict, output_file)
 
@@ -365,6 +419,7 @@ def main(args, log=None):
     ## TODO: 2 steps:
     ##          - first detection of all
     ##          - then tracking (https://github.com/abewley/sort, https://github.com/nwojke/deep_sort)
+    # https://github.com/FoundationVision/ByteTrack#combining-byte-with-other-detectors
     if check_gui_stop(log=log): return 0
     detection_dict = detect(
         my_video,
@@ -386,7 +441,7 @@ def main(args, log=None):
         tracking_size=args.tracking_size,
         score=args.det_score,
         log=log,
-        display_fct=args.display_fct
+        tracker_type=args.tracker_type
     )
 
     classes = ['NoID']
@@ -394,7 +449,7 @@ def main(args, log=None):
     # Classification
     if check_gui_stop(log=log): return 0
     classification_dict = classify(
-        detection_dict,
+        tracking_dict,
         my_video,
         args.output,
         log=log
@@ -521,8 +576,14 @@ def get_args():
     parser.add_argument(
         '-t', '--tracking_size',
         type=int,
-        default=30,
+        default=60,
         help=helptext_tracking_size
+    )
+    parser.add_argument(
+        '-T', '--tracker_type',
+        type=str,
+        default=None,
+        help=helptext_tracker_type
     )
     parser.add_argument(
         '-g', '--gui',

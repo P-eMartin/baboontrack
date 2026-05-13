@@ -230,7 +230,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
         for det in dets:
             coco_list.append({
                 'image_id': idx + 1,
-                'category_id': int(det['id'] + 1),
+                'category_id': int(det['id'] + 1) if 'id' in det else 1,
                 'bbox': [
                     get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
                     get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
@@ -239,9 +239,9 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
                 ],
                 'attributes': {
                     'name': 'NoID',
-                    'score': get_value_with_precision(det['det_score']),
+                    'score': get_value_with_precision(det['det_score'] if 'det_score' in det else 1),
                     'track_id': int(det['track_id'] + 1),
-                    'visibility': det['visibility'],
+                    'visibility': det['visibility'] if 'visibility' in det else 1,
                 }
             })
     os.makedirs(output_path, exist_ok=True)
@@ -289,8 +289,8 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
             mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
             mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
             mot_dict['not ignored'].append(1)
-            mot_dict['class_id'].append(int(det['id']+1))
-            mot_dict['visibility'].append(det['visibility'])
+            mot_dict['class_id'].append(int(det['id']+1) if 'id' in det else 1)
+            mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
             mot_dict['skipped'].append(0)
     save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'), without_headers=True)
     # Save labels if provided
@@ -318,5 +318,8 @@ def get_value_with_precision(value, precision=1000):
     '''
     if type(value) is list:
         return np.trunc(precision*np.array(value))/precision
-    return np.trunc(precision*value)/precision
+    elif value is None:
+        return None
+    else:
+        return np.trunc(precision*value)/precision
 

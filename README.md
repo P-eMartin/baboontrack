@@ -44,11 +44,11 @@ This is a local wheel file proper to this repository. It is not yet published, h
 
 **Linux and MacOS:**
 ```
-pip install dist/packaging_baboontrack-0.0.1-py3-none-any.whl
+pip install dist/baboontrack-0.0.1-py3-none-any.whl
 ```
 **Windows:**
 ```
-pip install .\dist\packaging_baboontrack-0.0.1-py3-none-any.whl
+pip install .\dist\baboontrack-0.0.1-py3-none-any.whl
 ```
 
 ### ffmpeg (facultative)
@@ -80,7 +80,7 @@ ti_video = os.path.join('data','ti1')
 physiotip.run(inputfolder=ti_video, gui=True)
 ``` -->
 
-## Update packaging_baboontrack
+## Update baboontrack
 
 This package is not published yet and may be updated. Github actions have been set to update the '.whl' file automatically. In order to retrieve the last updates, first pull the latest version of the repository and then reinstall the the '.whl' file. Make sure to be in your virtual environment.
 
@@ -91,19 +91,19 @@ git pull
 **Linux and MacOS:**
 ```
 source .venv/bin/activate
-pip install dist/packaging_baboontrack-0.0.1-py3-none-any.whl --force-reinstall
+pip install dist/baboontrack-0.0.1-py3-none-any.whl --force-reinstall
 ```
 
 **Windows:**
 ```
 .\.venv\Scripts\activate
-pip install .\dist\packaging_baboontrack-0.0.1-py3-none-any.whl --force-reinstall
+pip install .\dist\baboontrack-0.0.1-py3-none-any.whl --force-reinstall
 ```
 
 ## Documentation
 
 Doc is built automatically from source code. It is deployed on `gh-pages` branch.
-Link: https://ccp-eva.github.io/packaging_baboontrack/
+Link: https://ccp-eva.github.io/baboontrack/
 
 Once this repository published, the documentation will need to be published too (Settings -> Pages).
 Doc is also available in the `docs` folder of this repository.
