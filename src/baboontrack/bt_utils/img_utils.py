@@ -287,7 +287,7 @@ class VideoFrameIterator:
                         os.path.basename(self.path),
                         " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                     ), 
-                    log=log
+                    log=None
                 )
                 ## Resize wrt maximum resolution
                 if max_res is not None:

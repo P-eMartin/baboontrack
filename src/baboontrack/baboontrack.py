@@ -128,7 +128,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     # Assign new track IDs to unmatched detections
     for idx, detection in enumerate(detections):
 
-        if det_idx in to_delete:
+        if idx in to_delete:
             continue
 
         if 'track_id' not in detection:
@@ -352,7 +352,7 @@ def classify(detection_dict, my_video, output_path, log=None):
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
     ## Classification names
-    classes = ["NoID"]
+    classes = ['NoID']
     
     ## Check if detection_dict is filepath or dict
     if isinstance(detection_dict, str):
@@ -398,6 +398,9 @@ def main(args, log=None):
     # my_video.check_video()
 
     # Detection and tracking
+    ## TODO: 2 steps:
+    ##          - first detection of all
+    ##          - then tracking (https://github.com/abewley/sort, https://github.com/nwojke/deep_sort)
     if check_gui_stop(log=log): return 0
     detection_dict = detect(
         my_video,
@@ -410,7 +413,7 @@ def main(args, log=None):
     )
     if check_gui_stop(log=log): return 0
 
-    classes = ["NoID"]
+    classes = ['NoID']
 
     # Classification
     classification_dict = classify(
