@@ -395,7 +395,7 @@
 </span><span id="L-306"><a href="#L-306"><span class="linenos">306</span></a>        <span class="p">)</span>
 </span><span id="L-307"><a href="#L-307"><span class="linenos">307</span></a>
 </span><span id="L-308"><a href="#L-308"><span class="linenos">308</span></a>        <span class="c1">## Update tracker with the detection results</span>
-</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a>        <span class="k">if</span> <span class="n">bytetrack</span><span class="p">:</span>
+</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a>        <span class="k">if</span> <span class="n">tracker_type</span> <span class="o">==</span> <span class="s2">&quot;bytetrack&quot;</span><span class="p">:</span>
 </span><span id="L-310"><a href="#L-310"><span class="linenos">310</span></a>            <span class="c1"># Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores</span>
 </span><span id="L-311"><a href="#L-311"><span class="linenos">311</span></a>            <span class="n">bboxes</span> <span class="o">=</span> <span class="p">[]</span>
 </span><span id="L-312"><a href="#L-312"><span class="linenos">312</span></a>            <span class="k">for</span> <span class="n">det</span> <span class="ow">in</span> <span class="n">det_result</span><span class="p">:</span>
@@ -1159,7 +1159,7 @@ Visibility is set to 1 if no overlap with other tracks, and decreases as the IoU
 </span><span id="track-307"><a href="#track-307"><span class="linenos">307</span></a>        <span class="p">)</span>
 </span><span id="track-308"><a href="#track-308"><span class="linenos">308</span></a>
 </span><span id="track-309"><a href="#track-309"><span class="linenos">309</span></a>        <span class="c1">## Update tracker with the detection results</span>
-</span><span id="track-310"><a href="#track-310"><span class="linenos">310</span></a>        <span class="k">if</span> <span class="n">bytetrack</span><span class="p">:</span>
+</span><span id="track-310"><a href="#track-310"><span class="linenos">310</span></a>        <span class="k">if</span> <span class="n">tracker_type</span> <span class="o">==</span> <span class="s2">&quot;bytetrack&quot;</span><span class="p">:</span>
 </span><span id="track-311"><a href="#track-311"><span class="linenos">311</span></a>            <span class="c1"># Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores</span>
 </span><span id="track-312"><a href="#track-312"><span class="linenos">312</span></a>            <span class="n">bboxes</span> <span class="o">=</span> <span class="p">[]</span>
 </span><span id="track-313"><a href="#track-313"><span class="linenos">313</span></a>            <span class="k">for</span> <span class="n">det</span> <span class="ow">in</span> <span class="n">det_result</span><span class="p">:</span>
