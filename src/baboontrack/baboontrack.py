@@ -306,7 +306,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
         )
 
         ## Update tracker with the detection results
-        if bytetrack:
+        if tracker_type == "bytetrack":
             # Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores
             bboxes = []
             for det in det_result:
