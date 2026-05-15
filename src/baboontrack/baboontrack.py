@@ -155,7 +155,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
 
 
 
-def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None):
+def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None, evaluation=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -167,6 +167,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
         display_fct: function, the function to display the results in real-time (default None)
+        evaluation: bool, whether to perform evaluation of the detection results (default None)
 
     Returns:
         dict, the detection and tracking results
@@ -244,7 +245,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
         
     return output_results
 
-def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None):
+def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None, evaluation=False):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -257,13 +258,14 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
         tracker_type: str, the type of tracker to use (default None)
+        evaluation: bool, whether to perform evaluation of the tracking results (default False)
 
     Returns:
         dict, the tracking results
     '''
     # Initialization
     ## Check if the output file already exists
-    output_file = os.path.join(output_path, 'tracking_results.json')
+    output_file = os.path.join(output_path, 'tracking_%s.json' % (tracker_type if tracker_type else 'default'))
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping tracking. Loading existing file.' % (output_file), log=log)
         return output_file
@@ -280,10 +282,16 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
         feat_model = None
         tracker = BYTETracker()
     elif tracker_type == "deepsort":
+        print_and_log('Tracking with DeepSort', log=log)
         ## Feature extractor
         feat_model = ReIDModel(device=device)
         ## Tracker
         tracker = init_tracker(max_cosine_distance=0.5, nn_budget=100, max_iou_distance=0.5, max_age=tracking_size, n_init=0)
+    elif tracker_type == "botsort":
+        print_and_log('Tracking with BoTSORT', log=log)
+        from .bt_utils.bot_sort.bot_sort import BoTSORT
+        feat_model = ReIDModel(device=device)
+        tracker = BoTSORT(encoder=feat_model)
     else:
         # None - return the detection results without tracking
         print_and_log('No tracking, just returning detection results', log=log)
@@ -306,7 +314,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
         )
 
         ## Update tracker with the detection results
-        if tracker_type == "bytetrack":
+        if tracker_type in ["bytetrack", "botsort"]:
             # Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores
             bboxes = []
             for det in det_result:
@@ -318,7 +326,12 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
                 bboxes.append([x1, y1, x2, y2])
             bboxes = np.array(bboxes)
             scores = np.array([det['det_score'] for det in det_result])
-            _current_tracks = tracker.update(bboxes, scores)
+            if tracker_type == "bytetrack":
+                _current_tracks = tracker.update(bboxes, scores)
+            elif tracker_type == "botsort":
+                # Expecting bboxes in (x1, y1, x2, y2) format pixel coordinates, scores and classid (same classid for all detections here)
+                bboxes_scores = np.hstack((bboxes, scores[:, np.newaxis], np.ones((len(scores), 1))))
+                _current_tracks = tracker.update(bboxes_scores, frame)
             # Convert back to (x, y, w, h) format and normalized coordinates
             current_tracks = []
             for track in _current_tracks:
@@ -327,6 +340,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
                 tmp['bbox'] = [float(x1 / detection_dict['image_size'][0]), float(y1 / detection_dict['image_size'][1]), float(w / detection_dict['image_size'][0]), float(h / detection_dict['image_size'][1])]
                 tmp['track_id'] = track.track_id
                 tmp['det_score'] = float(track.score)
+                n_tracks = max(n_tracks, track.track_id)
                 current_tracks.append(tmp)
             all_tracks.append(current_tracks)
         else:
@@ -340,7 +354,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_path, log=None):
+def classify(detection_dict, my_video, output_path, log=None, evaluation=False):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -349,6 +363,7 @@ def classify(detection_dict, my_video, output_path, log=None):
         my_video: VideoFrameIterator, the video to process
         output_path: str, the path to save the output file
         log: logger, the logger to print the information (default None)
+        evaluation: bool, whether to perform evaluation of the classification results (default False)
 
     Returns:
         dict, the classification results
@@ -428,9 +443,9 @@ def main(args, log=None):
         score=args.det_score,
         tracking_size=args.tracking_size,
         log=log,
-        display_fct=args.display_fct
+        display_fct=args.display_fct,
+        evaluation=args.eval_detection
     )
-    
 
     # Tracking
     tracking_dict = track(
@@ -441,7 +456,8 @@ def main(args, log=None):
         tracking_size=args.tracking_size,
         score=args.det_score,
         log=log,
-        tracker_type=args.tracker_type
+        tracker_type=args.tracker_type,
+        evaluation=args.eval_tracking
     )
 
     classes = ['NoID']
@@ -452,7 +468,8 @@ def main(args, log=None):
         tracking_dict,
         my_video,
         args.output,
-        log=log
+        log=log,
+        evaluation=args.eval_classification
     )
     if check_gui_stop(log=log): return 0
 
@@ -477,7 +494,7 @@ def main(args, log=None):
         my_video.reset_video()
         my_video.plot_annotations(
             classification_dict['detections'],
-            os.path.join(args.output, 'video_demo.mp4'),
+            os.path.join(args.output, 'video_demo_%s.mp4' % args.tracker_type if args.tracker_type else 'default'),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=classification_dict['detection_classes'],
@@ -519,9 +536,10 @@ def infer_args_name(args):
 
     # Check output folder
     if args.output == '':
-        args.output = os.path.join('output','%s%s' % (
+        args.output = os.path.join('output','%s%s_tracker_%s' % (
                 datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"),
-                ('_i_%s' % (name_input)) if name_input != '' else ''
+                ('_i_%s' % (name_input)) if name_input != '' else '',
+                args.tracker_type if args.tracker_type else 'default'
             )
         )
     return 1
@@ -584,6 +602,21 @@ def get_args():
         type=str,
         default=None,
         help=helptext_tracker_type
+    )
+    parser.add_argument(
+        '-e', '--eval_detection',
+        action='store_true',
+        help=helptext_eval_detection
+    )
+    parser.add_argument(
+        '-E', '--eval_tracking',
+        action='store_true',
+        help=helptext_eval_tracking
+    )
+    parser.add_argument(
+        '-C', '--eval_classification',
+        action='store_true',
+        help=helptext_eval_classification
     )
     parser.add_argument(
         '-g', '--gui',

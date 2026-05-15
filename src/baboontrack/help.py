@@ -44,3 +44,12 @@ Options:
 - "deepsort": Use DeepSORT for tracking. This tracker uses a combination of motion and appearance features for tracking, which can be effective in crowded scenes.
 - None: Tracking based on IoU.
 '''
+
+helptext_eval_detection = '''Evaluate the detection performance using COCO metrics.
+'''
+
+helptext_eval_tracking = '''Evaluate the tracking performance using TrackEval metrics.
+'''
+
+helptext_eval_classification = '''Evaluate the classification performance using standard metrics.
+'''

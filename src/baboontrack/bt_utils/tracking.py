@@ -10,8 +10,8 @@ class ReIDModel:
     def __init__(self, device):
         import torchreid
         self.model = torchreid.models.build_model(
-            name='osnet_x0_25',
-            num_classes=1000,
+            name='osnet_ain_x1_0', # 'osnet_x0_25' 'osnet_ain_x1_0'
+            num_classes=20,
             pretrained=True
         )
         self.model.eval()
@@ -37,14 +37,14 @@ class ReIDModel:
             ),
         ])
 
-    def extract_feature(self, image, bbox, from_BGR=True):
+    def extract_feature(self, image, bbox, from_BGR=False):
         '''
         Extract the feature of an bbox using the re-identification model.
         
         Args:
             image: np.array, the input image
             bbox: tuple, the bounding box coordinates (x, y, w, h)
-            from_BGR: bool, whether the image is in BGR format (default True)
+            from_BGR: bool, whether the image is in BGR format (default False)
             
         Returns:
             feature: torch.Tensor, the extracted feature of the image
@@ -68,14 +68,80 @@ class ReIDModel:
         feature /= np.linalg.norm(feature)
         return feature
 
-    def extract_features(self, image, bboxes, from_BGR=True, max_batch_size=10):
+    def extract_features(self, image, bboxes, from_BGR=False, max_batch_size=10):
         '''
         Extract ReID features for multiple bboxes from a single image.
 
         Args:
             image: np.ndarray (single frame)
             bboxes: list of (x, y, w, h) of length N
-            from_BGR: bool
+            from_BGR: bool (default False)
+            max_batch_size: int
+
+        Returns:
+            features: np.ndarray of shape (N, D)
+        '''
+        crops = []
+        valid_indices = []
+
+        # 1. Crop all bboxes
+        for i, bbox in enumerate(bboxes):
+
+            x, y, w, h = map(int, bbox)
+            crop = image[y:y+h, x:x+w]
+
+            if crop.size == 0:
+                continue
+
+            if from_BGR:
+                crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+
+            crops.append(self.transform(crop))
+            valid_indices.append(i)
+
+        # handle empty case
+        if len(crops) == 0:
+            return np.zeros((len(bboxes), 512))
+
+        crops = torch.stack(crops)
+
+        features_list = []
+
+        # 2. Batched inference (chunked)
+        with torch.no_grad():
+
+            for i in range(0, len(crops), max_batch_size):
+
+                batch = crops[i:i + max_batch_size].to(self.device)
+
+                out = self.model(batch)
+
+                out = out.cpu().numpy()
+
+                # normalize
+                norms = np.linalg.norm(out, axis=1, keepdims=True) + 1e-12
+                out = out / norms
+
+                features_list.append(out)
+
+        features = np.vstack(features_list)
+
+        # 3. Restore original order
+        final_features = np.zeros((len(bboxes), features.shape[1]))
+
+        for idx, feat in zip(valid_indices, features):
+            final_features[idx] = feat
+
+        return final_features
+    
+    def inference(self, image, bboxes, from_BGR=False, max_batch_size=20):
+        '''
+        Extract ReID features for multiple bboxes from a single image.
+
+        Args:
+            image: np.ndarray (single frame)
+            bboxes: list of (x, y, w, h) of length N
+            from_BGR: bool (default False)
             max_batch_size: int
 
         Returns:
