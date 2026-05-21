@@ -1,4 +1,5 @@
 
+from collections import defaultdict
 import os
 import logging
 import numpy as np
@@ -245,11 +246,12 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None):
                 }
             })
     os.makedirs(output_path, exist_ok=True)
-    save_json_file(coco_list, os.path.join(output_path, 'annotations.json'))
+    output_file = os.path.join(output_path, 'detections.json')
+    save_json_file(coco_list, output_file)
     # Save labels if provided
     if labels is not None:
         save_json_file(labels, os.path.join(output_path, 'labels.json'))
-    return 1
+    return output_file
 
 def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
     '''
@@ -292,14 +294,118 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None):
             mot_dict['class_id'].append(int(det['id']+1) if 'id' in det else 1)
             mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
             mot_dict['skipped'].append(0)
-    save_dict_as_csv(mot_dict, os.path.join(folder_to_zip, 'gt.txt'), without_headers=True)
+    output_file = os.path.join(folder_to_zip, 'gt.txt')
+    save_dict_as_csv(mot_dict, output_file, without_headers=True)
     # Save labels if provided
     if labels is not None:
         with open(os.path.join(folder_to_zip, 'labels.txt'), 'w') as f:
             for label in labels:
                 f.write('%s\n' % (label))
     zip_folder(folder_to_zip, os.path.join(output_path, 'mot.zip'))
-    return 1
+    return output_file
+
+def load_mot_format(input_file, boundaries=None, log=None):
+    '''
+    Load detection/tracking results from a MOT-format file.
+
+    Args:
+        input_file: str, the path to the input file (can be a zip file, a folder containing gt/gt.txt, or a gt.txt file)
+        boundaries: tuple of int, the start and end frame IDs to load (default None, if None, all frames are loaded
+        log: logging.Logger, the logger to log the information (default None)
+
+    Returns:
+        dict: a dictionary containing the loaded detection/tracking results, with frame IDs as keys and
+            lists of detections as values. Each detection is a dictionary with keys 'track_id', 'bbox', 'id', 'visibility', 'not_ignored', and 'skipped'.
+    '''
+
+    def parse_rows(reader):
+        detection_dict = defaultdict(list)
+
+        for row in reader:
+            frame_id = int(row[0])
+
+            detection_dict[frame_id].append({
+                "track_id": int(row[1]) - 1,
+                "bbox": [
+                    int(row[2]),
+                    int(row[3]),
+                    int(row[4]),
+                    int(row[5]),
+                ],
+                "id": int(row[7]) - 1,
+                "visibility": float(row[8]),
+                "not_ignored": int(row[6]),
+                "skipped": int(row[9]),
+            })
+
+        return dict(detection_dict)
+
+    try:
+        if zipfile.is_zipfile(input_file):
+            with zipfile.ZipFile(input_file) as zf:
+                with zf.open("gt/gt.txt") as f:
+                    reader = csv.reader(line.decode() for line in f)
+                    detection_dict = parse_rows(reader)
+
+        elif os.path.isdir(input_file):
+            with open(os.path.join(input_file, "gt", "gt.txt"), newline="") as f:
+                detection_dict = parse_rows(csv.reader(f))
+
+        elif os.path.isfile(input_file):
+            with open(input_file, newline="") as f:
+                detection_dict = parse_rows(csv.reader(f))
+
+        else:
+            raise ValueError(
+                f"Input '{input_file}' is not a valid zip file, folder, or file."
+            )
+
+    except Exception as e:
+        print_and_log(str(e), log=log)
+        return None
+
+    if boundaries is not None:
+        start, end = boundaries
+        detection_dict = {
+            frame_id: dets
+            for frame_id, dets in detection_dict.items()
+            if start <= frame_id <= end
+        }
+
+    return detection_dict
+
+def mot_to_coco_format(mot_dict, image_size=None, cat_id_override=None):
+    '''
+    Convert a MOT-format dictionary to COCO format.
+
+    Args:
+        mot_dict: dict, the MOT-format dictionary to convert
+        image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
+        cat_id_override: int, the category ID to use as override for all annotations (default None, if None, the provided category ID is used)
+
+    Returns:
+        list of dict, the converted COCO-format list of annotations
+    '''
+    coco_list = []
+    for frame_id, dets in mot_dict.items():
+        for det in dets:
+            coco_list.append({
+                'image_id': frame_id,
+                'category_id': cat_id_override if cat_id_override is not None else int(det['id'] + 1) if 'id' in det else 1,
+                'bbox': [
+                    get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
+                    get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
+                    get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
+                    get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
+                ],
+                'attributes': {
+                    'name': 'NoID',
+                    'score': get_value_with_precision(det['det_score'] if 'det_score' in det else 1),
+                    'track_id': int(det['track_id'] + 1),
+                    'visibility': det['visibility'] if 'visibility' in det else 1,
+                }
+            })
+    return coco_list
 
 '''
 Miscellaneous functions

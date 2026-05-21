@@ -9,7 +9,6 @@ import torch
 from argparse import ArgumentParser
 import pdb
 from scipy.ndimage import gaussian_filter
-import pdb
 
 # Megadetector
 from megadetector.detection import run_detector
@@ -20,10 +19,11 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, save_mot_format, save_coco_format
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
+from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking
 
 # Help variables
 from .help import *
@@ -154,8 +154,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     return track_id
 
 
-
-def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, model_path='md_v5b.0.0.pt', log=None, evaluation=None):
+def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, det_model='md_v5b.0.0.pt', log=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -167,7 +166,6 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
         display_fct: function, the function to display the results in real-time (default None)
-        evaluation: bool, whether to perform evaluation of the detection results (default None)
 
     Returns:
         dict, the detection and tracking results
@@ -175,7 +173,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
     # Initialization
     
     ## Check if the output file already exists
-    output_file = os.path.join(output_path, 'results.json')
+    output_file = os.path.join(output_path, 'detection_%s.json') % (os.path.basename(det_model).split('.')[0])
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping detection and tracking.' % (output_file), log=log)
         return output_file
@@ -188,16 +186,16 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
     start_time = time.time()
 
     ## Megadetector
-    if model_path is not None:
-        if os.path.exists(model_path):
-            print_and_log('Loading Megadetector model from %s' % (model_path), log=log)
+    if det_model is not None:
+        if os.path.exists(det_model):
+            print_and_log('Loading Megadetector model from %s' % (det_model), log=log)
         else:
-            print_and_log('Megadetector model path %s does not exist. Loading default model.' % (model_path), log=log)
-            model_path = 'MDV5B'
+            print_and_log('Megadetector model path %s does not exist. Loading default model.' % (det_model), log=log)
+            det_model = 'MDV5B'
     else:
-        model_path = 'MDV5B'
+        det_model = 'MDV5B'
     model = run_detector.load_detector(
-        model_path,
+        det_model,
         detector_options={'device':device}
     ) # 1452MB on gpu
     det_classes = ["animal","person","vehicle"]
@@ -245,7 +243,7 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
         
     return output_results
 
-def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None, evaluation=False):
+def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -258,7 +256,6 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
         score: float, the minimum detection score (default 0.5)
         log: logger, the logger to print the information (default None)
         tracker_type: str, the type of tracker to use (default None)
-        evaluation: bool, whether to perform evaluation of the tracking results (default False)
 
     Returns:
         dict, the tracking results
@@ -354,7 +351,7 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_path, log=None, evaluation=False):
+def classify(detection_dict, my_video, output_path, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -363,7 +360,6 @@ def classify(detection_dict, my_video, output_path, log=None, evaluation=False):
         my_video: VideoFrameIterator, the video to process
         output_path: str, the path to save the output file
         log: logger, the logger to print the information (default None)
-        evaluation: bool, whether to perform evaluation of the classification results (default False)
 
     Returns:
         dict, the classification results
@@ -430,11 +426,15 @@ def main(args, log=None):
     my_video = VideoFrameIterator(args.input_video, log=log)
     # my_video.check_video()
 
+    # Load ground truth if evaluation is enabled
+    if args.eval_detection or args.eval_tracking or args.eval_classification:
+        # With class ID being the track id but also the det ID
+        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
+        boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1].split('.')[0].split('_')]
+        gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
+
     # Detection
-    ## TODO: 2 steps:
-    ##          - first detection of all
-    ##          - then tracking (https://github.com/abewley/sort, https://github.com/nwojke/deep_sort)
-    # https://github.com/FoundationVision/ByteTrack#combining-byte-with-other-detectors
+    ## TODO: Detection - tracking with SAM 3
     if check_gui_stop(log=log): return 0
     detection_dict = detect(
         my_video,
@@ -443,11 +443,26 @@ def main(args, log=None):
         score=args.det_score,
         tracking_size=args.tracking_size,
         log=log,
-        display_fct=args.display_fct,
-        evaluation=args.eval_detection
+        display_fct=args.display_fct
     )
 
+    if args.eval_detection:
+        gt_dict_coco_det = mot_to_coco_format(gt_dict_mot_cat, cat_id_override=1)
+        labels_detection = ['Baboon']
+        # Save detection and gt as coco format for evaluation
+        gt_det_coco_file = save_coco_format(gt_dict_coco_det['detections'], os.path.join(args.output, 'gt_coco_format'), labels=labels_detection)
+        det_coco_file = save_coco_format(
+            [d for d in detection_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            os.path.join(args.output, 'det_coco_format'),
+            image_size=detection_dict['image_size'],
+            labels=labels_detection
+        )
+        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, log=log)
+        print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
+
+
     # Tracking
+    if check_gui_stop(log=log): return 0
     tracking_dict = track(
         my_video,
         detection_dict,
@@ -457,9 +472,19 @@ def main(args, log=None):
         score=args.det_score,
         log=log,
         tracker_type=args.tracker_type,
-        evaluation=args.eval_tracking
     )
 
+    if args.eval_tracking:
+        # Save tracking results in MOT format for evaluation
+        track_mot_file = save_mot_format(
+            [d for d in tracking_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            os.path.join(args.output, 'track_mot_format'),
+            image_size=detection_dict['image_size'],
+            labels=labels_detection
+        )
+        # Evaluate tracking results
+        eval_results = evaluate_tracking(gt_file_class_mot, track_mot_file, log=log)
+        print_and_log('Tracking evaluation results: %s' % (str(eval_results)), log=log)
     classes = ['NoID']
 
     # Classification
@@ -468,10 +493,22 @@ def main(args, log=None):
         tracking_dict,
         my_video,
         args.output,
-        log=log,
-        evaluation=args.eval_classification
+        log=log
     )
     if check_gui_stop(log=log): return 0
+
+    if args.eval_classification:
+        # Evaluate classification results using COCO metrics
+        gt_dict_coco_class = mot_to_coco_format(gt_dict_mot_cat)
+        gt_class_coco_file = save_coco_format(gt_dict_coco_class['detections'], os.path.join(args.output, 'gt_class_coco_format'), labels=classes)
+        class_coco_file = save_coco_format(
+            [d for d in classification_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            os.path.join(args.output, 'class_coco_format'),
+            image_size=classification_dict['image_size'],
+            labels=classes
+        )
+        eval_results = evaluate_detection(gt_class_coco_file, class_coco_file, log=log)
+        print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
     # Save MOT format
     save_mot_format(
