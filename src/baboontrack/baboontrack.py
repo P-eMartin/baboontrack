@@ -501,7 +501,7 @@ def main(args, log=None):
             cat_id_override=1
         )
         # Evaluate tracking results
-        eval_results = evaluate_tracking(gt_track_mot_folder, track_mot_file, save_path=os.path.join(args.output, 'tracking_eval_results_%s.csv' % (args.tracker_type if args.tracker_type else 'default')), log=log)
+        eval_results = evaluate_tracking(gt_track_mot_folder, track_mot_file, save_path=os.path.join(args.output, 'tracking_eval_results_%s.txt' % (args.tracker_type if args.tracker_type else 'default')), log=log)
         print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
     classes = ['NoID']
 
