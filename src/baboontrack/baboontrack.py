@@ -19,11 +19,11 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
-from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking
+from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format
 
 # Help variables
 from .help import *
@@ -430,36 +430,44 @@ def main(args, log=None):
     if args.eval_detection or args.eval_tracking or args.eval_classification:
         # With class ID being the track id but also the det ID
         gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
-        boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1].split('.')[0].split('_')]
+        boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1:3]]
         gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
     ## TODO: Detection - tracking with SAM 3
     if check_gui_stop(log=log): return 0
+    det_model='md_v5b.0.0.pt'
     detection_dict = detect(
         my_video,
         args.output,
         device=args.device,
         score=args.det_score,
         tracking_size=args.tracking_size,
+        det_model=det_model,
         log=log,
         display_fct=args.display_fct
     )
 
     if args.eval_detection:
-        gt_dict_coco_det = mot_to_coco_format(gt_dict_mot_cat, cat_id_override=1)
+        # Load detection results if not already loaded
+        if not isinstance(detection_dict, dict):
+            print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
+            detection_dict = load_json_file(detection_dict)
+        # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
+        gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=detection_dict['image_size'], cat_id_override=1, categories=labels_detection)
         # Save detection and gt as coco format for evaluation
-        gt_det_coco_file = save_coco_format(gt_dict_coco_det['detections'], os.path.join(args.output, 'gt_coco_format'), labels=labels_detection)
+        gt_det_coco_file = os.path.join(args.output, 'gt_det_coco_format.json')
+        save_json_file(gt_dict_coco_det, gt_det_coco_file)
         det_coco_file = save_coco_format(
-            [d for d in detection_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            detection_dict['detections'],
             os.path.join(args.output, 'det_coco_format'),
             image_size=detection_dict['image_size'],
-            labels=labels_detection
+            labels=labels_detection,
+            boundaries=boundaries
         )
-        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, log=log)
+        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, save_path=os.path.join(args.output, 'detection_eval_results_%s.json' % (os.path.basename(det_model).split('.')[0])), log=log)
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
-
 
     # Tracking
     if check_gui_stop(log=log): return 0
@@ -477,14 +485,24 @@ def main(args, log=None):
     if args.eval_tracking:
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
-            [d for d in tracking_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            tracking_dict['detections'],
             os.path.join(args.output, 'track_mot_format'),
             image_size=detection_dict['image_size'],
-            labels=labels_detection
+            labels=labels_detection,
+            boundaries=boundaries
+        )
+        # Save gt in MOT format for evaluation
+        gt_track_mot_folder = os.path.join(args.output, 'gt_track_mot_format')
+        save_mot_format(
+            gt_dict_mot_cat,
+            gt_track_mot_folder,
+            labels=labels_detection,
+            boundaries=boundaries,
+            cat_id_override=1
         )
         # Evaluate tracking results
-        eval_results = evaluate_tracking(gt_file_class_mot, track_mot_file, log=log)
-        print_and_log('Tracking evaluation results: %s' % (str(eval_results)), log=log)
+        eval_results = evaluate_tracking(gt_track_mot_folder, track_mot_file, save_path=os.path.join(args.output, 'tracking_eval_results_%s.csv' % (args.tracker_type if args.tracker_type else 'default')), log=log)
+        print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
     classes = ['NoID']
 
     # Classification
@@ -499,15 +517,17 @@ def main(args, log=None):
 
     if args.eval_classification:
         # Evaluate classification results using COCO metrics
-        gt_dict_coco_class = mot_to_coco_format(gt_dict_mot_cat)
+        gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=classification_dict['image_size'], categories=classes)
         gt_class_coco_file = save_coco_format(gt_dict_coco_class['detections'], os.path.join(args.output, 'gt_class_coco_format'), labels=classes)
         class_coco_file = save_coco_format(
-            [d for d in classification_dict['detections'] if boundaries[0] <= d['frame_id'] <= boundaries[1]], # With boundaries
+            classification_dict['detections'],
             os.path.join(args.output, 'class_coco_format'),
             image_size=classification_dict['image_size'],
-            labels=classes
+            labels=classes,
+            boundaries=boundaries
         )
         eval_results = evaluate_detection(gt_class_coco_file, class_coco_file, log=log)
+        save_json_file(eval_results, os.path.join(args.output, 'classification_eval_results.json'))
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
     # Save MOT format
