@@ -32,7 +32,7 @@ dependencies = [
     "lap>=0.4.0",
     "cython-bbox>=0.1.0",
     "motmetrics>=1.2.0",
-    "pycoco-tools>=2.0.0",
+    "pycocotools>=2.0.0",
     # "bioread>=3.0.0"
 ]
 
