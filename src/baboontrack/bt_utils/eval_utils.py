@@ -330,8 +330,9 @@ def evaluate_tracking(gt_file, tracking_file, save_path=None, log=None):
     seq_name = os.path.basename(gt_file).split('.')[0]
     evaluator = Evaluator(data_root, seq_name, data_type='mot')
     eval_results = evaluator.eval_file(tracking_file)
-    summarized_results = evaluator.get_summary([eval_results], [seq_name])
+    summary = evaluator.get_summary([eval_results], [seq_name])
     if save_path is not None:
-        evaluator.save_summary(summarized_results, save_path)
-    return summarized_results
+        with open(save_path, 'w') as f:
+            f.write(summary.to_string())
+    return summary
 
