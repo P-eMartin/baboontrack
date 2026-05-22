@@ -1,5 +1,5 @@
-from .pycocotools.coco import COCO
-from .pycocotools.cocoeval import COCOeval
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 import numpy as np
 import copy
 import json
