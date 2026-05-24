@@ -551,7 +551,7 @@ def main(args, log=None):
         my_video.reset_video()
         my_video.plot_annotations(
             classification_dict['detections'],
-            os.path.join(args.output, 'video_demo_%s.mp4' % args.tracker_type if args.tracker_type else 'default'),
+            os.path.join(args.output, 'video_demo_%s.mp4' % (args.tracker_type if args.tracker_type else 'default')),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=classification_dict['detection_classes'],
@@ -593,12 +593,14 @@ def infer_args_name(args):
 
     # Check output folder
     if args.output == '':
-        args.output = os.path.join('output','%s%s_tracker_%s' % (
+        args.output = os.path.join('output','%s%s' % (
                 datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"),
-                ('_i_%s' % (name_input)) if name_input != '' else '',
-                args.tracker_type if args.tracker_type else 'default'
+                ('_i_%s' % (name_input)) if name_input != '' else ''
             )
         )
+
+    # Check tracker type
+    assert args.tracker_type in [None, 'bytetrack', 'deepsort', 'botsort'], 'Tracker type must be one of None, bytetrack, deepsort or botsort.'
     return 1
 
 def get_args():
