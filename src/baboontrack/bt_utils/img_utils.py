@@ -113,6 +113,22 @@ class VideoFrameIterator:
             if self.cap.isOpened():
                 self.cap.release()
 
+    def extract_all_frames(self, output_folder):
+        '''
+        Extract all frames from the video and save them as images in the output folder.
+
+        Args:
+            output_folder: str, the path to the folder to save the extracted frames
+        '''
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        
+        # Reset video
+        self.reset_video()
+
+        for idx, frame in enumerate(self):
+            cv2.imwrite(os.path.join(output_folder, f"frame_{idx:04d}.png"), frame)
+
     def check_video(self):
         '''
         Test the iterator by iterating over the video frames.
