@@ -28,9 +28,6 @@ from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_t
 # Help variables
 from .help import *
 
-# GUI
-from .gui import run_with_gui, check_gui_stop
-
 def get_last_tracks(all_tracks):
     '''
     Get the last tracks from the tracking buffer.
@@ -400,7 +397,19 @@ def classify(detection_dict, my_video, output_path, log=None):
 
     return classification_dict
 
-def main(args, log=None):
+def false_check(log=None):
+    '''
+    False check function.
+
+    Args:
+        log: logger, the logger to print the information (default None)
+    
+    Returns:
+        bool, False, to indicate that the process should not be stopped.
+    '''
+    return False
+
+def main(args, check_stop=false_check, log=None):
     '''
     Main function to process the video.
     Perform first the detection and tracking of the Baboons.
@@ -435,7 +444,7 @@ def main(args, log=None):
 
     # Detection
     ## TODO: Detection - tracking with SAM 3
-    if check_gui_stop(log=log): return 0
+    if check_stop(log=log): return 0
     det_model='md_v5b.0.0.pt'
     detection_dict = detect(
         my_video,
@@ -470,7 +479,7 @@ def main(args, log=None):
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
     # Tracking
-    if check_gui_stop(log=log): return 0
+    if check_stop(log=log): return 0
     tracking_dict = track(
         my_video,
         detection_dict,
@@ -506,14 +515,14 @@ def main(args, log=None):
     classes = ['NoID']
 
     # Classification
-    if check_gui_stop(log=log): return 0
+    if check_stop(log=log): return 0
     classification_dict = classify(
         tracking_dict,
         my_video,
         args.output,
         log=log
     )
-    if check_gui_stop(log=log): return 0
+    if check_stop(log=log): return 0
 
     if args.eval_classification:
         # Evaluate classification results using COCO metrics
@@ -559,7 +568,7 @@ def main(args, log=None):
             del_imgs=args.del_imgs,
             log=log
         )
-        if check_gui_stop(log=log): return 0
+        if check_stop(log=log): return 0
 
     print_and_log("Processing of %s finished in %ds." % (args.input_video, time.time()-start_time), log=log)
     close_log(log)
@@ -720,6 +729,7 @@ def run(**kwargs):
     # Send arguments to main
     if args.gui:
         # Use GUI
+        from .gui import run_with_gui
         run_with_gui(args, main, check_args_fct=infer_args_name)
     else:
         os.makedirs(args.output, exist_ok=True)
