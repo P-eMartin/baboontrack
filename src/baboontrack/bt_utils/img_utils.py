@@ -113,7 +113,7 @@ class VideoFrameIterator:
             if self.cap.isOpened():
                 self.cap.release()
 
-    def extract_all_frames(self, output_folder):
+    def extract_all_frames(self, output_folder, log=None):
         '''
         Extract all frames from the video and save them as images in the output folder.
 
@@ -125,8 +125,15 @@ class VideoFrameIterator:
         
         # Reset video
         self.reset_video()
+        start_time = time.time()
 
         for idx, frame in enumerate(self):
+            if idx % 50 == 0:
+                elapsed_time = time.time() - start_time
+                progress_bar(idx, self.length, 'Extracting frames from video %s%s' % (
+                    os.path.basename(self.path),
+                    " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
+                ), log=log)
             cv2.imwrite(os.path.join(output_folder, f"frame_{idx:04d}.png"), frame)
 
     def check_video(self):
@@ -139,7 +146,13 @@ class VideoFrameIterator:
             if idx % 100 == 0:
                 print_and_log("Frame %d/%d" % (idx, self.length), log=self.log)
         total_frames = idx + 1
-        print_and_log("Video %s with fps %.2f iterated in %.2f seconds with a total frame of %d. FPS: %.2f" % (self.path, self.fps, time.time() - start_time, total_frames, total_frames / (time.time() - start_time)), log=self.log)
+        print_and_log("Video %s with fps %.2f iterated in %.2f seconds with a total frame of %d. Frames Processed PS: %.2f" % (
+            self.path,
+            self.fps,
+            time.time() - start_time,
+            total_frames,
+            total_frames / (time.time() - start_time)
+        ), log=self.log)
         if self.length != total_frames:
             print_and_log("Warning: The number of frames iterated (%d) is different from the video length (%d). Modifying video length information." % (total_frames, self.length), log=self.log)
             self.length = total_frames
