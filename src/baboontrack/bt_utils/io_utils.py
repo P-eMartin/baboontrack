@@ -209,6 +209,25 @@ def zip_folder(folder_to_zip, output_file):
                 zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.dirname(output_file)))
     return 1
 
+def get_all_files_in_folder(folder_path, all_files=[], extensions=None):
+    '''
+    Get all files in a folder and subfolders with specific extensions.
+
+    Args:
+        folder_path: str, the path to the folder.
+        all_files: list of str, the list to store the file paths (default empty list)
+        extensions: list of str, the list of extensions to filter the files (default None, which means all files)
+
+    Returns:
+        list of str, the list of file paths
+    '''
+    for entry in os.scandir(folder_path):
+        if entry.is_file() and (extensions is None or os.path.splitext(entry.name)[1].lower() in extensions):
+            all_files.append(entry.path)
+        elif entry.is_dir():
+            get_all_files_in_folder(entry.path, all_files, extensions)
+    return all_files
+
 '''
 Miscellaneous functions
 '''
