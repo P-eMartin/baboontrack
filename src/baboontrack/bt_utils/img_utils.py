@@ -136,6 +136,24 @@ class VideoFrameIterator:
                 ), log=log)
             cv2.imwrite(os.path.join(output_folder, f"frame_{idx:04d}.png"), frame)
 
+    def get_image_size(self):
+        '''
+        Get the resolution of the video.
+
+        Returns:
+            tuple: the resolution of the video (width, height)
+        '''
+        if self.img:
+            frame = cv2.imread(self.img_files[0])
+        else:
+            ret, frame = self.cap.read()
+            if not ret:
+                print_and_log("Error reading the first frame of the video %s to get its resolution." % (self.path), log=self.log)
+                return None
+            # Reset video
+            self.reset_video()
+        return frame.shape[:2][::-1] # return (width, height)
+
     def check_video(self):
         '''
         Test the iterator by iterating over the video frames.

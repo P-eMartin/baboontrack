@@ -433,6 +433,8 @@ def main(args, check_stop=false_check, log=None):
 
     # Video object initialization
     my_video = VideoFrameIterator(args.input_video, log=log)
+    image_size = my_video.get_image_size()
+    print_and_log('Video %s opened with resolution %s and %d frames.' % (args.input_video, str(image_size), len(my_video)), log=log)
     # my_video.check_video()
 
     # Load ground truth if evaluation is enabled
@@ -464,14 +466,14 @@ def main(args, check_stop=false_check, log=None):
             detection_dict = load_json_file(detection_dict)
         # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
-        gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=detection_dict['image_size'], cat_id_override=1, categories=labels_detection)
+        gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, cat_id_override=1, categories=labels_detection)
         # Save detection and gt as coco format for evaluation
         gt_det_coco_file = os.path.join(args.output, 'gt_det_coco_format.json')
         save_json_file(gt_dict_coco_det, gt_det_coco_file)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
             os.path.join(args.output, 'det_coco_format'),
-            image_size=detection_dict['image_size'],
+            image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
         )
@@ -492,11 +494,15 @@ def main(args, check_stop=false_check, log=None):
     )
 
     if args.eval_tracking:
+        # Load tracking results if not already loaded
+        if not isinstance(tracking_dict, dict):
+            print_and_log('Loading tracking_dict from %s' % (tracking_dict), log=log)
+            tracking_dict = load_json_file(tracking_dict)
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
             os.path.join(args.output, 'track_mot_format'),
-            image_size=detection_dict['image_size'],
+            image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
         )
@@ -526,12 +532,12 @@ def main(args, check_stop=false_check, log=None):
 
     if args.eval_classification:
         # Evaluate classification results using COCO metrics
-        gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=classification_dict['image_size'], categories=classes)
+        gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=classes)
         gt_class_coco_file = save_coco_format(gt_dict_coco_class['detections'], os.path.join(args.output, 'gt_class_coco_format'), labels=classes)
         class_coco_file = save_coco_format(
             classification_dict['detections'],
             os.path.join(args.output, 'class_coco_format'),
-            image_size=classification_dict['image_size'],
+            image_size=image_size,
             labels=classes,
             boundaries=boundaries
         )
@@ -543,7 +549,7 @@ def main(args, check_stop=false_check, log=None):
     save_mot_format(
         classification_dict['detections'],
         os.path.join(args.output, 'mot'),
-        image_size=classification_dict['image_size'],
+        image_size=image_size,
         labels=classes
     )
 
@@ -551,7 +557,7 @@ def main(args, check_stop=false_check, log=None):
     save_coco_format(
         classification_dict['detections'],
         os.path.join(args.output, 'coco'),
-        image_size=classification_dict['image_size'],
+        image_size=image_size,
         labels=classes
     )
 
