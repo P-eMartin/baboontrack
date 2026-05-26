@@ -1,6 +1,7 @@
 
 import os
 import cv2
+from matplotlib.pyplot import step
 import numpy as np
 import zipfile
 import natsort # type: ignore
@@ -151,6 +152,7 @@ class VideoFrameIterator:
         # Reset video
         self.reset_video()
         start_time = time.time()
+        step = chunk_size - overlap
 
         for idx, frame in enumerate(self):
             if idx % 50 == 0:
@@ -159,19 +161,23 @@ class VideoFrameIterator:
                     os.path.basename(self.path),
                     " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                 ), log=log)
-            chunk_idx = idx // chunk_size
+            
+            chunk_idx = idx // step
             chunk_folder = os.path.join(output_folder, f"chunk_{chunk_idx:04d}")
-            if not os.path.exists(chunk_folder):
-                os.makedirs(chunk_folder)
-            cv2.imwrite(os.path.join(chunk_folder, f"frame_{idx:04d}.png"), frame)
+            os.makedirs(chunk_folder, exist_ok=True)
+            cv2.imwrite(os.path.join(chunk_folder, f"{idx:05d}.png"), frame)
 
             # Save the frame a second time in the next chunk if overlap is needed
-            overlap_idx = idx // (chunk_size+overlap)
-            if overlap_idx != chunk_idx and overlap_idx * (chunk_size+overlap) < self.length:
-                chunk_folder = os.path.join(output_folder, f"chunk_{overlap_idx:04d}")
-                if not os.path.exists(chunk_folder):
-                    os.makedirs(chunk_folder)
-                cv2.imwrite(os.path.join(chunk_folder, f"frame_{idx:04d}.png"), frame)
+            next_chunk_start = (chunk_idx + 1) * step
+
+            if overlap > 0 and next_chunk_start < self.length:
+                if next_chunk_start - overlap <= idx < next_chunk_start:
+                    overlap_folder = os.path.join(output_folder, f"chunk_{chunk_idx + 1:04d}")
+                    os.makedirs(overlap_folder, exist_ok=True)
+                    cv2.imwrite(
+                        os.path.join(overlap_folder, f"{idx:05d}.png"),
+                        frame
+                    )
 
     def get_image_size(self):
         '''
