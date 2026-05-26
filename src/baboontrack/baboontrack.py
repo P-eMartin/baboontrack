@@ -23,7 +23,7 @@ from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
-from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format
+from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format, coco_to_perso_format
 
 # Help variables
 from .help import *
@@ -151,18 +151,19 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     return track_id
 
 
-def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, display_fct=None, det_model='md_v5b.0.0.pt', log=None):
+def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, display_fct=None, det_model='md_v5b.0.0.pt', log=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
     Args:
         my_video: VideoFrameIterator, the video to process
-        output_path: str, the path to save the output file
+        output_file: str, the path to save the output file
         device: str, the device to use for the detection
         tracking_size: int, the size of the tracking buffer in number of frames (default 60)
         score: float, the minimum detection score (default 0.5)
-        log: logger, the logger to print the information (default None)
         display_fct: function, the function to display the results in real-time (default None)
+        det_model: str, the path to the detection model (default 'md_v5b.0.0.pt')
+        log: logger, the logger to print the information (default None)
 
     Returns:
         dict, the detection and tracking results
@@ -170,7 +171,6 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
     # Initialization
     
     ## Check if the output file already exists
-    output_file = os.path.join(output_path, 'detection_%s.json') % (os.path.basename(det_model).split('.')[0])
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping detection and tracking.' % (output_file), log=log)
         return output_file
@@ -240,26 +240,25 @@ def detect(my_video, output_path, device='cpu', tracking_size=60, score=0.5, dis
         
     return output_results
 
-def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60, score=0.5, log=None, tracker_type=None):
+def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score=0.5, tracker_type=None, log=None):
     '''
     Track the Baboons in the video using the detection results.
 
     Args:
         my_video: VideoFrameIterator, the video to process
         detection_dict: dict, the detection results
-        output_path: str, the path to save the output file
+        output_file: str, the path to save the output file
         device: str, the device to use for the tracking
         tracking_size: int, the size of the tracking buffer in number of frames (default 30)
         score: float, the minimum detection score (default 0.5)
-        log: logger, the logger to print the information (default None)
         tracker_type: str, the type of tracker to use (default None)
+        log: logger, the logger to print the information (default None)
 
     Returns:
         dict, the tracking results
     '''
     # Initialization
     ## Check if the output file already exists
-    output_file = os.path.join(output_path, 'tracking_%s.json' % (tracker_type if tracker_type else 'default'))
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping tracking. Loading existing file.' % (output_file), log=log)
         return output_file
@@ -348,14 +347,14 @@ def track(my_video, detection_dict, output_path, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_path, log=None):
+def classify(detection_dict, my_video, output_file, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
     Args:
         detection_dict: dict, the detection and tracking results
         my_video: VideoFrameIterator, the video to process
-        output_path: str, the path to save the output file
+        output_file: str, the path to save the output file
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -363,7 +362,6 @@ def classify(detection_dict, my_video, output_path, log=None):
     '''
     # Initialization
     ## Check if the output file already exists
-    output_file = os.path.join(output_path, 'classification_results.json')
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
@@ -449,7 +447,7 @@ def main(args, check_stop=false_check, log=None):
     if check_stop(log=log): return 0
     detection_dict = detect(
         my_video,
-        args.output,
+        os.path.join(args.output, 'det_%s.json') % (os.path.basename(args.det_model).split('.')[0]),
         device=args.device,
         score=args.det_score,
         tracking_size=args.tracking_size,
@@ -462,7 +460,11 @@ def main(args, check_stop=false_check, log=None):
         # Load detection results if not already loaded
         if not isinstance(detection_dict, dict):
             print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
-            detection_dict = load_json_file(detection_dict)
+            _detection_dict = load_json_file(detection_dict)
+            if 'detections' in _detection_dict:
+                detection_dict = _detection_dict
+            else:
+                detection_dict = {'detections': coco_to_perso_format(_detection_dict, image_size=image_size, frame_id_offset=boundaries[0] if args.tracker_type == 'sam3' else 0)}
         # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
         gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, cat_id_override=1, categories=labels_detection)
@@ -471,12 +473,16 @@ def main(args, check_stop=false_check, log=None):
         save_json_file(gt_dict_coco_det, gt_det_coco_file)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
-            os.path.join(args.output, 'det_coco_format'),
+            os.path.join(args.output, 'det_coco_format_%s' % (os.path.basename(args.det_model).split('.')[0])),
             image_size=image_size,
             labels=labels_detection,
-            boundaries=boundaries
+            boundaries=boundaries,
+            frame_id_offset=1
         )
-        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, save_path=os.path.join(args.output, 'detection_eval_results_%s.json' % (os.path.basename(args.det_model).split('.')[0])), log=log)
+        eval_results = evaluate_detection(
+            gt_det_coco_file,
+            det_coco_file,
+            save_path=os.path.join(args.output, 'det_eval_%s.json' % (os.path.basename(args.det_model).split('.')[0])), log=log)
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
     # Tracking
@@ -484,19 +490,23 @@ def main(args, check_stop=false_check, log=None):
     tracking_dict = track(
         my_video,
         detection_dict,
-        args.output,
+        os.path.join(args.output, 'track_%s_%s.json' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
         device=args.device,
         tracking_size=args.tracking_size,
         score=args.det_score,
-        log=log,
         tracker_type=args.tracker_type,
+        log=log
     )
 
     if args.eval_tracking:
         # Load tracking results if not already loaded
         if not isinstance(tracking_dict, dict):
             print_and_log('Loading tracking_dict from %s' % (tracking_dict), log=log)
-            tracking_dict = load_json_file(tracking_dict)
+            _tracking_dict = load_json_file(tracking_dict)
+            if 'detections' in _tracking_dict:
+                tracking_dict = _tracking_dict
+            else:
+                tracking_dict = {'detections': coco_to_perso_format(_tracking_dict, image_size=image_size, frame_id_offset=boundaries[0] if args.tracker_type == 'sam3' else 0)}
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
@@ -515,7 +525,12 @@ def main(args, check_stop=false_check, log=None):
             cat_id_override=1
         )
         # Evaluate tracking results
-        eval_results = evaluate_tracking(gt_track_mot_folder, track_mot_file, save_path=os.path.join(args.output, 'tracking_eval_results_%s.txt' % (args.tracker_type if args.tracker_type else 'default')), log=log)
+        eval_results = evaluate_tracking(
+            gt_track_mot_folder,
+            track_mot_file,
+            save_path=os.path.join(args.output, 'track_eval_%s_%s.txt' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
+            log=log
+        )
         print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
     classes = ['NoID']
 
@@ -524,7 +539,7 @@ def main(args, check_stop=false_check, log=None):
     classification_dict = classify(
         tracking_dict,
         my_video,
-        args.output,
+        os.path.join(args.output, 'class_%s_%s.json' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
         log=log
     )
     if check_stop(log=log): return 0
@@ -544,28 +559,28 @@ def main(args, check_stop=false_check, log=None):
         save_json_file(eval_results, os.path.join(args.output, 'classification_eval_results.json'))
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
-    # Save MOT format
-    save_mot_format(
-        classification_dict['detections'],
-        os.path.join(args.output, 'mot'),
-        image_size=image_size,
-        labels=classes
-    )
+    # # Save MOT format
+    # save_mot_format(
+    #     classification_dict['detections'],
+    #     os.path.join(args.output, 'mot'),
+    #     image_size=image_size,
+    #     labels=classes
+    # )
 
-    # Save COCO format
-    save_coco_format(
-        classification_dict['detections'],
-        os.path.join(args.output, 'coco'),
-        image_size=image_size,
-        labels=classes
-    )
+    # # Save COCO format
+    # save_coco_format(
+    #     classification_dict['detections'],
+    #     os.path.join(args.output, 'coco'),
+    #     image_size=image_size,
+    #     labels=classes
+    # )
 
     # Create the video
     if args.video_demo:
         my_video.reset_video()
         my_video.plot_annotations(
             classification_dict['detections'],
-            os.path.join(args.output, 'video_demo_%s.mp4' % (args.tracker_type if args.tracker_type else 'default')),
+            os.path.join(args.output, 'video_demo_%s_%s.mp4' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=classification_dict['detection_classes'],
