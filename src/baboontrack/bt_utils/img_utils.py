@@ -1,5 +1,6 @@
 
 import os
+from tracemalloc import start
 import cv2
 from matplotlib.pyplot import step
 import numpy as np
@@ -163,21 +164,23 @@ class VideoFrameIterator:
                 ), log=log)
             
             chunk_idx = idx // step
+            start = chunk_idx * step
+            end = min(start + chunk_size, self.length)
+
+            # Save the frame in the current chunk
             chunk_folder = os.path.join(output_folder, f"chunk_{chunk_idx:04d}")
             os.makedirs(chunk_folder, exist_ok=True)
             cv2.imwrite(os.path.join(chunk_folder, f"{idx:05d}.png"), frame)
 
             # Save the frame a second time in the next chunk if overlap is needed
             next_chunk_start = (chunk_idx + 1) * step
-
-            if overlap > 0 and next_chunk_start < self.length:
-                if next_chunk_start - overlap <= idx < next_chunk_start:
-                    overlap_folder = os.path.join(output_folder, f"chunk_{chunk_idx + 1:04d}")
-                    os.makedirs(overlap_folder, exist_ok=True)
-                    cv2.imwrite(
-                        os.path.join(overlap_folder, f"{idx:05d}.png"),
-                        frame
-                    )
+            if next_chunk_start - overlap <= idx < next_chunk_start:
+                overlap_folder = os.path.join(output_folder, f"chunk_{chunk_idx+1:04d}")
+                os.makedirs(overlap_folder, exist_ok=True)
+                cv2.imwrite(
+                    os.path.join(overlap_folder, f"{idx:05d}.png"),
+                    frame
+                )
 
     def get_image_size(self):
         '''
