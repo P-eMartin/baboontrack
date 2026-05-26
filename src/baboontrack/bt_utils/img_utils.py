@@ -199,7 +199,11 @@ class VideoFrameIterator:
         start_time = time.time()
         for idx, frame in enumerate(self):
             if idx % 100 == 0:
-                print_and_log("Frame %d/%d" % (idx, self.length), log=self.log)
+                elapsed_time = time.time() - start_time
+                progress_bar(idx, self.length, 'Checking video %s%s' % (
+                    os.path.basename(self.path),
+                    " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
+                ), log=self.log)
         total_frames = idx + 1
         print_and_log("Video %s with fps %.2f iterated in %.2f seconds with a total frame of %d. Frames Processed PS: %.2f" % (
             self.path,
