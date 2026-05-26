@@ -221,12 +221,13 @@ def get_all_files_in_folder(folder_path, all_files=None, extensions=None):
     Returns:
         list of str, the list of file paths
     '''
-    all_files = all_files or []
+    if all_files is None:
+        all_files = []
     for entry in os.scandir(folder_path):
         if entry.is_file() and (extensions is None or os.path.splitext(entry.name)[1].lower() in extensions):
             all_files.append(entry.path)
         elif entry.is_dir():
-            all_files.extend(get_all_files_in_folder(entry.path, all_files, extensions))
+            get_all_files_in_folder(entry.path, all_files, extensions)
     return all_files
 
 '''
