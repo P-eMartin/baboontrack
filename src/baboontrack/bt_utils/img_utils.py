@@ -174,7 +174,7 @@ class VideoFrameIterator:
 
             # Save the frame a second time in the next chunk if overlap is needed
             next_chunk_start = (chunk_idx + 1) * step
-            if next_chunk_start - overlap <= idx < next_chunk_start:
+            if next_chunk_start - overlap <= idx < next_chunk_start and next_chunk_start < self.length:
                 overlap_folder = os.path.join(output_folder, f"chunk_{chunk_idx+1:04d}")
                 os.makedirs(overlap_folder, exist_ok=True)
                 cv2.imwrite(
