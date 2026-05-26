@@ -136,6 +136,43 @@ class VideoFrameIterator:
                 ), log=log)
             cv2.imwrite(os.path.join(output_folder, f"frame_{idx:04d}.png"), frame)
 
+    def extract_all_frames_in_chunks(self, output_folder, chunk_size=1000, overlap=0, log=None):
+        '''
+        Extract all frames from the video and save them as images in the output folder in chunks.
+
+        Args:
+            output_folder: str, the path to the folder to save the extracted frames
+            chunk_size: int, the number of frames to save in each chunk (default 1000)
+            overlap: int, the number of frames to overlap between chunks (default 0)
+        '''
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        
+        # Reset video
+        self.reset_video()
+        start_time = time.time()
+
+        for idx, frame in enumerate(self):
+            if idx % 50 == 0:
+                elapsed_time = time.time() - start_time
+                progress_bar(idx, self.length, 'Extracting frames from video %s%s' % (
+                    os.path.basename(self.path),
+                    " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
+                ), log=log)
+            chunk_idx = idx // chunk_size
+            chunk_folder = os.path.join(output_folder, f"chunk_{chunk_idx:04d}")
+            if not os.path.exists(chunk_folder):
+                os.makedirs(chunk_folder)
+            cv2.imwrite(os.path.join(chunk_folder, f"frame_{idx:04d}.png"), frame)
+
+            # Save the frame a second time in the next chunk if overlap is needed
+            overlap_idx = idx // (chunk_size+overlap)
+            if overlap_idx != chunk_idx and overlap_idx * (chunk_size+overlap) < self.length:
+                chunk_folder = os.path.join(output_folder, f"chunk_{overlap_idx:04d}")
+                if not os.path.exists(chunk_folder):
+                    os.makedirs(chunk_folder)
+                cv2.imwrite(os.path.join(chunk_folder, f"frame_{idx:04d}.png"), frame)
+
     def get_image_size(self):
         '''
         Get the resolution of the video.
