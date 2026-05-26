@@ -42,6 +42,8 @@ helptext_tracker_type = '''Type of tracker to use. Default: None.
 Options:
 - "bytetrack": Use ByteTrack for tracking. This is a high-performance tracker that can handle occlusions and missed detections well.
 - "deepsort": Use DeepSORT for tracking. This tracker uses a combination of motion and appearance features for tracking, which can be effective in crowded scenes.
+- "botsort": Use BoTSORT for tracking. This tracker is designed for real-time applications and can handle occlusions and missed detections.
+- "sam3": Use SAM 3 for tracking. This tracker uses a segmentation-based approach for tracking, which can be effective in cases of significant appearance changes or occlusions.
 - None: Tracking based on IoU.
 '''
 
@@ -52,4 +54,7 @@ helptext_eval_tracking = '''Evaluate the tracking performance using TrackEval me
 '''
 
 helptext_eval_classification = '''Evaluate the classification performance using standard metrics.
+'''
+
+helptext_det_model = '''Model to use for detection. Default: "md_v5b.0.0.pt".
 '''

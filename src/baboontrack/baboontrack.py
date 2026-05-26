@@ -447,14 +447,13 @@ def main(args, check_stop=false_check, log=None):
     # Detection
     ## TODO: Detection - tracking with SAM 3
     if check_stop(log=log): return 0
-    det_model='md_v5b.0.0.pt'
     detection_dict = detect(
         my_video,
         args.output,
         device=args.device,
         score=args.det_score,
         tracking_size=args.tracking_size,
-        det_model=det_model,
+        det_model=args.det_model,
         log=log,
         display_fct=args.display_fct
     )
@@ -477,7 +476,7 @@ def main(args, check_stop=false_check, log=None):
             labels=labels_detection,
             boundaries=boundaries
         )
-        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, save_path=os.path.join(args.output, 'detection_eval_results_%s.json' % (os.path.basename(det_model).split('.')[0])), log=log)
+        eval_results = evaluate_detection(gt_det_coco_file, det_coco_file, save_path=os.path.join(args.output, 'detection_eval_results_%s.json' % (os.path.basename(args.det_model).split('.')[0])), log=log)
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
     # Tracking
@@ -615,7 +614,7 @@ def infer_args_name(args):
         )
 
     # Check tracker type
-    assert args.tracker_type in [None, 'bytetrack', 'deepsort', 'botsort'], 'Tracker type must be one of None, bytetrack, deepsort or botsort.'
+    assert args.tracker_type in [None, 'bytetrack', 'deepsort', 'botsort', 'sam3'], 'Tracker type must be one of None, bytetrack, deepsort or botsort.'
     return 1
 
 def get_args():
@@ -656,7 +655,7 @@ def get_args():
         help=helptext_det_score
     )
     parser.add_argument(
-        '-D', '--del-imgs',
+        '-c', '--del-imgs',
         action='store_true',
         help=helptext_del_imgs
     )
@@ -664,6 +663,12 @@ def get_args():
         '-d', '--device',
         default='cuda:0' if torch.cuda.is_available() else 'cpu',
         help=helptext_device
+    )
+    parser.add_argument(
+        '-D', '--det_model',
+        default='md_v5b.0.0.pt',
+        type=str,
+        help=helptext_det_model
     )
     parser.add_argument(
         '-t', '--tracking_size',
