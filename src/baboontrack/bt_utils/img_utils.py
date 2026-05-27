@@ -166,7 +166,7 @@ class VideoFrameIterator:
             
             if idx >= end:
                 chunk_idx += 1
-                end = min(end + chunk_size, self.length)
+                end = min(end - overlap + chunk_size, self.length)
 
             # Save the frame in the current chunk
             chunk_folder = os.path.join(output_folder, f"chunk_{chunk_idx:04d}")
