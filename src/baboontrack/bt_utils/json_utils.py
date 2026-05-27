@@ -51,3 +51,40 @@ def load_json_file(json_file, str_ok=False):
         return variable
     else:
         return ast.literal_eval(variable)
+    
+def convert_keys(obj):
+
+    if isinstance(obj, dict):
+        return {
+            str(k): convert_keys(v)
+            for k, v in obj.items()
+        }
+
+    elif isinstance(obj, list):
+        return [convert_keys(v) for v in obj]
+
+    elif isinstance(obj, tuple):
+        return tuple(convert_keys(v) for v in obj)
+
+    else:
+        return obj
+
+
+def save_dict_to_txt(obj, filepath, indent=2):
+    """
+    Save an object's __dict__ to a text file.
+
+    Parameters
+    ----------
+    obj : object
+        Any Python object with a __dict__ attribute.
+    filepath : str
+        Output file path.
+    indent : int
+        JSON indentation level.
+    """
+
+    data = convert_keys(obj.__dict__)
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=indent, default=str)
