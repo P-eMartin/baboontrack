@@ -153,7 +153,8 @@ class VideoFrameIterator:
         # Reset video
         self.reset_video()
         start_time = time.time()
-        step = chunk_size - overlap
+        chunk_idx = 0
+        end = chunk_size
 
         for idx, frame in enumerate(self):
             if idx % 50 == 0:
@@ -163,9 +164,9 @@ class VideoFrameIterator:
                     " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                 ), log=log)
             
-            chunk_idx = idx // step
-            start = chunk_idx * step
-            end = min(start + chunk_size, self.length)
+            if idx >= end:
+                chunk_idx += 1
+                end = min(end + chunk_size, self.length)
 
             # Save the frame in the current chunk
             chunk_folder = os.path.join(output_folder, f"chunk_{chunk_idx:04d}")
@@ -173,8 +174,7 @@ class VideoFrameIterator:
             cv2.imwrite(os.path.join(chunk_folder, f"{idx:05d}.png"), frame)
 
             # Save the frame a second time in the next chunk if overlap is needed
-            next_chunk_start = (chunk_idx + 1) * step
-            if next_chunk_start - overlap <= idx < next_chunk_start and next_chunk_start < self.length:
+            if end - overlap <= idx and end < self.length:
                 overlap_folder = os.path.join(output_folder, f"chunk_{chunk_idx+1:04d}")
                 os.makedirs(overlap_folder, exist_ok=True)
                 cv2.imwrite(
