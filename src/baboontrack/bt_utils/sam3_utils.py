@@ -185,7 +185,7 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
     # Initialization
     start_time = time.time()
     ## Frame extraction
-    tmp_vid = os.path.join(tmp_dir, os.path.basename(my_video.video_path).split(".")[0])
+    tmp_vid = os.path.join(tmp_dir, os.path.basename(my_video.path).split(".")[0])
     if os.path.exists(tmp_vid):
         if len(my_video) == len(get_all_files_in_folder(tmp_vid, extensions=(".jpg", ".png")))-overlap*(len(os.listdir(tmp_vid))-1):
             print_and_log(f"Frames already extracted in '{tmp_vid}'. Skipping extraction.", log=log)
@@ -199,8 +199,6 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
     chunk_dirs = sorted([os.path.join(tmp_vid, f) for f in os.listdir(tmp_vid) if os.path.isdir(os.path.join(tmp_vid, f))])
     coco_files = []
     frame_shift = 0
-    gpu_id = torch.cuda.current_device()
-    gpu_tot = torch.cuda.get_device_properties(gpu_id).total_memory / 1024**3
     ram_tot = psutil.virtual_memory().total / 1024**3
     print_and_log("Processing video in %d chunks of %d frames with an overlap of %d frames." % (len(chunk_dirs), chunk_size, overlap), log=log)
 
@@ -209,13 +207,11 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
         # conda run -n ENV_NAME python script.py
         coco_file = os.path.join(chunk_dir, 'coco_list.json')
         print_and_log(
-            'Processing chunk %s with GPU (used/res/total): %.2f/%.2f/%.2f Gb, RAM %.2f/%.2f' % (
+            'Processing chunk %s with RAM %.2f/%.2f' % (
                 chunk_dir,
-                torch.cuda.memory_allocated(gpu_id) / 1024**3,
-                torch.cuda.memory_reserved(gpu_id) / 1024**3,
-                gpu_tot,
                 (ram_tot - psutil.virtual_memory().available/1024**3),
-                ),
+                ram_tot
+            ),
             log=log
         )
         command = ['conda', 'run', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),

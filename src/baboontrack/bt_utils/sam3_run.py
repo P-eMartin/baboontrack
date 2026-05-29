@@ -6,10 +6,31 @@ import gc
 import sys
 import pdb
 from pycocotools import mask as mask_utils
-from .io_utils import get_value_with_precision
-from .json_utils import save_json_file
+from json_utils import save_json_file
 sys.path.append(os.path.dirname(__file__))  # Add sam3 directory to the system path to import sam3
 from sam3.model_builder import build_sam3_video_predictor # type: ignore
+
+'''
+Miscellaneous functions
+'''
+def get_value_with_precision(value, precision=1000):
+    '''
+    Get the value with a certain precision.
+    Useful for saving in json files (or other) to avoid float precision issues.
+    
+    Args:
+        value: float, the value to process
+        precision: int, the precision to use (default 1000)
+    
+    Returns:
+        float: the value with the precision
+    '''
+    if type(value) is list:
+        return np.trunc(precision*np.array(value))/precision
+    elif value is None:
+        return None
+    else:
+        return np.trunc(precision*value)/precision
 
 def to_coco_format(sam_output, coco_list, frame_shift=0):
     frame_index = sam_output["frame_index"]+frame_shift
@@ -70,6 +91,13 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
                 text=text_prompt,
             )
         )
+        gpu_id = torch.cuda.current_device()
+        gpu_tot = torch.cuda.get_device_properties(gpu_id).total_memory / 1024**3
+        print('Propagating in video. GPU memory (used/res/total): %.2f/%.2f/%.2f Gb' % (
+            torch.cuda.memory_allocated(gpu_id) / 1024**3,
+            torch.cuda.memory_reserved(gpu_id) / 1024**3,
+            gpu_tot
+        ))
         # Propagate the prompt in the video
         propagate_in_video(
             video_predictor,
