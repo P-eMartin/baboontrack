@@ -9,6 +9,7 @@ import natsort # type: ignore
 from .io_utils import print_and_log
 from .json_utils import load_json_file
 from .ffmpeg_utils import get_ffmpeg_codec, create_video
+from pycocotools import mask as mask_utils
 import time
 import subprocess
 import re
@@ -425,6 +426,11 @@ class VideoFrameIterator:
                     # Class ID and Class ID score - above the det text
                     text = (('' if class_id is None else '%s ' % (class_id)) + ('' if id_score is None else '(%.2g)' % (id_score))).replace('(0.', '(.').replace('(-0.', '(-.')
                     write_text(frame, text, (bbox[0], bbox[1] - 4*spacing - txt_h), fontscale, color_bg=color_id, thickness=thickness, font=font)
+                    # Get mask from RLE if exists
+                    if 'segmentation' in ann and ann['segmentation'] is not None:
+                        mask = mask_utils.decode(ann['segmentation'])
+                        color_mask = tuple(int(c) for c in color_det)
+                        frame[mask == 1] = cv2.addWeighted(frame, 0.5, np.array(color_mask, dtype=np.uint8), 0.5, 0)[mask == 1]
                 # Save the annotated frame
                 cv2.imwrite(os.path.join(output_folder, '%d.png' % idx), frame)
                 # Call the display function if provided
