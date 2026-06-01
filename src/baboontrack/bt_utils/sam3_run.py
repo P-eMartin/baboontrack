@@ -148,4 +148,4 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    main(args.video_path, args.text_prompt, args.output_file, frame_shift=args.frame_shift)
+    main(args.video_path, args.output_file, args.text_prompt, frame_shift=args.frame_shift)
