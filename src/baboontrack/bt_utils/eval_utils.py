@@ -40,7 +40,7 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
             perso_list.append(det_list)
             det_list = []
         det_list.append({
-            'image_id': det['image_id'] + frame_id_offset - 1,
+            'image_id': det['image_id'] + frame_id_offset,
             'category_id': det['category_id'],
             'bbox': det['bbox'] if image_size is None else [
                 det['bbox'][0] / image_size[0],
@@ -54,7 +54,7 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
     perso_list.append(det_list)
     return perso_list
 
-def save_coco_format(detection_dict, output_path, image_size=None, labels=None, boundaries=None, frame_id_offset=1):
+def save_coco_format(detection_dict, output_path, image_size=None, labels=None, boundaries=None, frame_id_offset=0):
     '''
     Save the detection and tracking results in COCO format.
 
@@ -64,7 +64,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
         image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
         labels: list of str, the list of labels to save in a separate file (default None)
         boundaries: list of int, the boundaries of the frames to save (default None)
-        frame_id_offset: int, the offset to add to the frame IDs (default 1, to start from 1 instead of 0)
+        frame_id_offset: int, the offset to add to the frame IDs (default 0, no offset)
 
     Returns:
         int, 1 if the file was properly saved
@@ -74,11 +74,11 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
     # Loop over the detection_dict and fill the COCO format dictionary
     for idx, dets_or_key in enumerate(detection_dict):
         if isinstance(dets_or_key, list): # Case when dets_or_key is a list of detections
-            if boundaries and not (boundaries[0] <= idx+1 <= boundaries[1]):
+            if boundaries and not (boundaries[0] <= idx <= boundaries[1]):
                 continue
             for det in dets_or_key:
                 coco_list.append({
-                    'image_id': idx + frame_id_offset,
+                    'image_id': idx + 1 + frame_id_offset,
                     'category_id': int(det['id'] + 1) if 'id' in det else 1,
                     'bbox': [
                         get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
@@ -95,7 +95,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
             det = dets_or_key
-            if boundaries and not (boundaries[0] <= det['image_id'] <= boundaries[1]):
+            if boundaries and not (boundaries[0] <= det['image_id']-1 <= boundaries[1]):
                 continue
             coco_list.append({
                 'image_id': det['image_id'] + frame_id_offset,
@@ -157,7 +157,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
     # Loop over the detection_dict and fill the MOT format dictionary
     for idx, dets_or_key in enumerate(detection_dict):
         if isinstance(dets_or_key, list): # Case when dets_or_key is a list of detections
-            if boundaries and not (boundaries[0] <= idx+1 <= boundaries[1]):
+            if boundaries and not (boundaries[0] <= idx <= boundaries[1]):
                 continue
             for det in dets_or_key:
                 mot_dict['frame_id'].append(idx+frame_id_offset)
@@ -171,7 +171,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
                 mot_dict['skipped'].append(0)
         elif isinstance(detection_dict, dict): # Case when detection_dict is a dictionary with dets_or_key being the key.
-            if boundaries and not (boundaries[0] <= dets_or_key <= boundaries[1]):
+            if boundaries and not (boundaries[0] <= int(dets_or_key)-1 <= boundaries[1]):
                 continue
             dets = detection_dict[dets_or_key]
             for det in dets:
@@ -187,7 +187,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['skipped'].append(det['skipped'] if 'skipped' in det else 0)
         else: # Case when detection_dict is a list of dictionaries (in COCO format)
             det = dets_or_key
-            if boundaries and not (boundaries[0] <= det['image_id'] <= boundaries[1]):
+            if boundaries and not (boundaries[0] <= det['image_id']-1 <= boundaries[1]):
                 continue
             mot_dict['frame_id'].append(det['image_id'] + frame_id_offset -1)
             mot_dict['track_id'].append(det['track_id'])
@@ -269,7 +269,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
         detection_dict = {
             frame_id: dets
             for frame_id, dets in detection_dict.items()
-            if start <= frame_id <= end
+            if start <= frame_id-1 <= end
         }
 
     return detection_dict

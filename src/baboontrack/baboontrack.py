@@ -441,8 +441,11 @@ def main(args, check_stop=false_check, log=None):
     # Load ground truth if evaluation is enabled
     if args.eval_detection or args.eval_tracking or args.eval_classification:
         # With class ID being the track id but also the det ID
-        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
+        # gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
+        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-0-546-mot.zip')
         boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1:3]]
+        if boundaries[0] == 0:
+            boundaries[0] = 1
         gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
@@ -467,7 +470,7 @@ def main(args, check_stop=false_check, log=None):
             if 'detections' in _detection_dict:
                 detection_dict = _detection_dict
             else:
-                detection_dict = {'detections': coco_to_perso_format(_detection_dict, image_size=image_size, frame_id_offset=boundaries[0] if args.tracker_type == 'sam3' else 0)}
+                detection_dict = {'detections': coco_to_perso_format(_detection_dict, image_size=image_size)}
         # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
         gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, cat_id_override=1, categories=labels_detection)
@@ -479,8 +482,7 @@ def main(args, check_stop=false_check, log=None):
             os.path.join(args.output, 'det_coco_format_%s' % (os.path.basename(args.det_model).split('.')[0])),
             image_size=image_size,
             labels=labels_detection,
-            boundaries=boundaries,
-            frame_id_offset=1
+            boundaries=boundaries
         )
         eval_results = evaluate_detection(
             gt_det_coco_file,
@@ -509,7 +511,7 @@ def main(args, check_stop=false_check, log=None):
             if 'detections' in _tracking_dict:
                 tracking_dict = _tracking_dict
             else:
-                tracking_dict = {'detections': coco_to_perso_format(_tracking_dict, image_size=image_size, frame_id_offset=boundaries[0] if args.tracker_type == 'sam3' else 0)}
+                tracking_dict = {'detections': coco_to_perso_format(_tracking_dict, image_size=image_size)}
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
