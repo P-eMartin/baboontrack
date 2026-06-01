@@ -6,7 +6,7 @@ import shutil
 import psutil
 import time
 from .img_utils import VideoFrameIterator
-from .io_utils import print_and_log, get_all_files_in_folder
+from .io_utils import print_and_log, get_all_files_in_folder, progress_bar
 from .json_utils import save_json_file, load_json_file
 from .ffmpeg_utils import run_command
 from pycocotools import mask as mask_utils
@@ -202,15 +202,18 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
     ram_tot = psutil.virtual_memory().total / 1024**3
     print_and_log("Processing video in %d chunks of %d frames with an overlap of %d frames." % (len(chunk_dirs), chunk_size, overlap), log=log)
 
-    for chunk_dir in chunk_dirs:
+    for idx, chunk_dir in enumerate(chunk_dirs):
         # Process each chunk in another script to avoid memory overload from the video predictor
-        # conda run -n ENV_NAME python script.py
         coco_file = os.path.join(chunk_dir, 'coco_list.json')
-        print_and_log(
-            'Processing chunk %s with RAM %.2f/%.2f' % (
+        elapsed_time = time.time() - start_time
+        progress_bar(
+            idx,
+            len(chunk_dirs),
+            title = 'Processing chunk %s with RAM %.2f/%.2f%s' % (
                 chunk_dir,
                 (ram_tot - psutil.virtual_memory().available/1024**3),
-                ram_tot
+                ram_tot,
+                ' (%ds left)' % (elapsed_time/idx*(len(chunk_dirs)-idx)) if idx > 0 else ''
             ),
             log=log
         )
@@ -221,6 +224,7 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
         if clean_up:
             shutil.rmtree(chunk_dir)
         coco_files.append(coco_file)
+    progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), log=log)
 
     # Merge coco files
     merged_detections = merge_detections(coco_files, iou_threshold=0.8)

@@ -214,7 +214,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, dis
             len(my_video),
             'Detection and Tracking Progress with currently %d tracks.%s' % (
                 track_id,
-                '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx-1)) if idx else ''
+                '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx)) if idx else ''
             ),
             log=log
         )
@@ -304,7 +304,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
             len(my_video),
             'Tracking Progress with currently %d tracks.%s' % (
                 n_tracks,
-                '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx-1)) if idx else ''
+                '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx)) if idx else ''
             ),
             log=log
         )
