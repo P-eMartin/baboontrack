@@ -55,12 +55,13 @@ def to_coco_format(sam_output, coco_list, frame_shift=0):
         }
         coco_list.append(coco_output)
 
-def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=2, clear_freq=50):
+def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=15, clear_freq=50):
     # we will just propagate from frame 0 to the end of the video
     for idx, response in enumerate(predictor.handle_stream_request(
         request=dict(
             type="propagate_in_video",
-            session_id=session_id
+            session_id=session_id,
+            output_prob_thresh=0.3
         )
     )):
         to_coco_format(response, coco_list, frame_shift=frame_shift)
@@ -79,7 +80,7 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
         response = video_predictor.handle_request(
             request=dict(
                 type="start_session",
-                resource_path=video_path,
+                resource_path=video_path
             )
         )
         session_id = response["session_id"]
@@ -89,6 +90,7 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
                 session_id=session_id,
                 frame_index=0,
                 text=text_prompt,
+                output_prob_thresh=0.3
             )
         )
         gpu_id = torch.cuda.current_device()

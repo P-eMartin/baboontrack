@@ -209,25 +209,25 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
         progress_bar(
             idx,
             len(chunk_dirs),
-            title = 'Processing chunk %s with RAM %.2f/%.2f%s' % (
+            title = 'Processing chunk %s with frame shift %d (RAM %.2f/%.2f%s)' % (
                 chunk_dir,
+                frame_shift,
                 (ram_tot - psutil.virtual_memory().available/1024**3),
                 ram_tot,
                 ' (%ds left)' % (elapsed_time/idx*(len(chunk_dirs)-idx)) if idx > 0 else ''
             ),
+            completed=True, # Because other prints
             log=log
         )
-        command = ['conda', 'run', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
+        command = ['conda', 'run', '--no-capture-output', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
         run_command(command, log=log)
-        if idx == 0:
-            frame_shift += chunk_size - overlap
-        else:
-            frame_shift += chunk_size - 2*overlap
+        frame_shift += chunk_size - overlap
+
         if clean_up:
             shutil.rmtree(chunk_dir)
         coco_files.append(coco_file)
-    progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), log=log)
+    progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), completed=True, log=log)
 
     # Merge coco files
     merged_detections = merge_detections(coco_files, iou_threshold=0.8)

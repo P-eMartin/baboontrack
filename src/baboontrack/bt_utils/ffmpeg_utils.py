@@ -1,6 +1,7 @@
 import os
 import subprocess
 from .io_utils import print_and_log
+import traceback
 
 def get_ffmpeg_codecs(log=None):
     '''
@@ -19,9 +20,11 @@ def get_ffmpeg_codecs(log=None):
         return codecs
     except subprocess.CalledProcessError as e:
         print_and_log('Error during ffmpeg codecs listing: %s' % (str(e)), log=log)
+        print_and_log('Traceback: %s' % (traceback.format_exc()), log=log)
         return []
     except Exception as e:
         print_and_log('An unexpected error occurred during ffmpeg codecs listing: %s' % (str(e)), log=log)
+        print_and_log('Traceback: %s' % (traceback.format_exc()), log=log)
         return []
 
 def get_ffmpeg_codec(log=None):
@@ -70,22 +73,48 @@ def check_svg_support():
         return False
 
 def run_command(command, log=None):
-    '''
-    Run a command in the terminal.
+    """
+    Run a command in the terminal and stream its output in real time.
 
     Args:
-        command: list of str, the command to run
-        log: logging.Logger, the logger to log the information (facultative, default None)
-    '''
+        command: list[str]
+            Command to execute.
+
+        log: logging.Logger, optional
+            Logger used by print_and_log().
+
+    Returns:
+        int
+            Return code of the process (0 on success).
+    """
+
     try:
-        subprocess.run(command, check=True)
-    except subprocess.CalledProcessError as e:
-        print_and_log('Command %s:' % (' '.join(command)), log=log)
-        print_and_log('\tError during command execution: %s' % (str(e)), log=log)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        for line in iter(process.stdout.readline, ''):
+            line = line.rstrip()
+
+            # Skip progress-bar style updates, empty lines and warnings.warn
+            if '%' in line or line.strip() == '' or 'warnings.warn' in line or "FutureWarning" in line:
+                print('\t' + line, end='\r', flush=True)
+            else:
+                print_and_log('\t' + line, log=log)
+        return_code = process.wait()
+        if return_code != 0:
+            print_and_log(f"Command {' '.join(command)} failed with return code {return_code}", log=log)
+
+        return return_code
+
     except Exception as e:
-        print_and_log('Command %s:' % (' '.join(command)), log=log)
-        print_and_log('\tAn unexpected error occurred when running the command: %s' % (str(e)), log=log)
-    return 1
+        print_and_log(f"Command {' '.join(command)}:", log=log)
+        print_and_log(f"\tAn unexpected error occurred when running the command: {e}", log=log)
+        print_and_log(f"Traceback:\n{traceback.format_exc()}",log=log)
+        return 1
 
 def create_video(input_folder, output_file, fps=30, sequence='%d.png', threads=1, codec='libx265', log=None, extra_args=[]):
     '''

@@ -467,7 +467,7 @@ def main(args, check_stop=false_check, log=None):
 
     if args.eval_detection:
         # Load detection results if not already loaded
-        if not isinstance(detection_dict, dict):
+        if isinstance(detection_dict, str):
             print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
             _detection_dict = load_json_file(detection_dict)
             if 'detections' in _detection_dict:
@@ -784,8 +784,8 @@ def run(**kwargs):
         from .gui import run_with_gui
         run_with_gui(args, main, check_args_fct=infer_args_name)
     else:
-        os.makedirs(args.output, exist_ok=True)
-        log = setup_logger(log_file=os.path.join(args.output, '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))))
+        os.makedirs(os.path.join(args.output, 'logs'), exist_ok=True)
+        log = setup_logger(log_file=os.path.join(args.output, 'logs', '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))))
         print_and_log('Starting BaboonTrack without GUI with arguments: %s' % (args), log=log)
         main(args, log=log)
         close_log(log)

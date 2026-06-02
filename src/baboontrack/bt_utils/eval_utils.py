@@ -47,8 +47,10 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
                 det['bbox'][2] / image_size[0],
                 det['bbox'][3] / image_size[1]
             ],
-            'score': det['score'] if 'score' in det else det['det_score'] if 'det_score' in det else 1,
-            'track_id': det['track_id'] if 'track_id' in det else det['attributes']['track_id'] if 'attributes' in det and 'track_id' in det['attributes'] else None,
+            'score': det.get('score', det.get('det_score', 1)),
+            'track_id': det.get('track_id', det.get('attributes', {}).get('track_id')),
+            # Add segmentation if available
+            'segmentation': det.get('segmentation'),
         })
     perso_list.append(det_list)
     return perso_list
@@ -85,11 +87,11 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                         get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                     ],
-                    'score': get_value_with_precision(det['det_score'] if 'det_score' in det else 1),
+                    'score': get_value_with_precision(det.get('det_score', 1)),
                     'attributes': {
                         'name': 'NoID',
                         'track_id': int(det['track_id'] + 1),
-                        'visibility': det['visibility'] if 'visibility' in det else 1,
+                        'visibility': det.get('visibility', 1),
                     }
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
@@ -166,8 +168,8 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
                 mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
                 mot_dict['not ignored'].append(1)
-                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det['id']+1) if 'id' in det else 1)
-                mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
+                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det.get('id', 0)+1))
+                mot_dict['visibility'].append(det.get('visibility', 1))
                 mot_dict['skipped'].append(0)
         elif isinstance(detection_dict, dict): # Case when detection_dict is a dictionary with dets_or_key being the key.
             if boundaries and not (boundaries[0] <= int(dets_or_key)-1 <= boundaries[1]):
@@ -180,10 +182,10 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
                 mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
                 mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
-                mot_dict['not ignored'].append(det['not_ignored'] if 'not_ignored' in det else 1)
-                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det['id']+1) if 'id' in det else 1)
-                mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
-                mot_dict['skipped'].append(det['skipped'] if 'skipped' in det else 0)
+                mot_dict['not ignored'].append(det.get('not_ignored', 1))
+                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det.get('id', 0)+1))
+                mot_dict['visibility'].append(det.get('visibility', 1))
+                mot_dict['skipped'].append(det.get('skipped', 0))
         else: # Case when detection_dict is a list of dictionaries (in COCO format)
             det = dets_or_key
             if boundaries and not (boundaries[0] <= det['image_id']-1 <= boundaries[1]):
@@ -194,10 +196,10 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
             mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
             mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
             mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
-            mot_dict['not ignored'].append(det['not_ignored'] if 'not_ignored' in det else 1)
-            mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'] if 'category_id' in det else 1)
-            mot_dict['visibility'].append(det['visibility'] if 'visibility' in det else 1)
-            mot_dict['skipped'].append(det['skipped'] if 'skipped' in det else 0)    
+            mot_dict['not ignored'].append(det.get('not_ignored', 1))
+            mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det.get('category_id', 1))
+            mot_dict['visibility'].append(det.get('visibility', 1))
+            mot_dict['skipped'].append(det.get('skipped', 0))
     output_file = os.path.join(folder_to_zip, 'gt.txt')
     save_dict_as_csv(mot_dict, output_file, without_headers=True)
     # Save labels if provided

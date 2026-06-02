@@ -406,9 +406,9 @@ class VideoFrameIterator:
                     bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
                     track_id = ann['track_id']
                     det = detection_classes[ann['det']] if detection_classes else ann['det']
-                    det_score = ann['det_score']
+                    det_score = ann.get('det_score', ann.get('score', None))
                     class_id = classification_classes[ann['id']] if classification_classes else ann['id']
-                    id_score = ann['id_score']
+                    id_score = ann.get('id_score', None)
                     if detection_color_dict is not None:
                         color_det = detection_color_dict[det]
                     else:
@@ -427,10 +427,9 @@ class VideoFrameIterator:
                     text = (('' if class_id is None else '%s ' % (class_id)) + ('' if id_score is None else '(%.2g)' % (id_score))).replace('(0.', '(.').replace('(-0.', '(-.')
                     write_text(frame, text, (bbox[0], bbox[1] - 4*spacing - txt_h), fontscale, color_bg=color_id, thickness=thickness, font=font)
                     # Get mask from RLE if exists
-                    if 'segmentation' in ann and ann['segmentation'] is not None:
-                        mask = mask_utils.decode(ann['segmentation'])
-                        color_mask = tuple(int(c) for c in color_det)
-                        frame[mask == 1] = cv2.addWeighted(frame, 0.5, np.array(color_mask, dtype=np.uint8), 0.5, 0)[mask == 1]
+                    segmentation = ann.get('segmentation', None)
+                    if segmentation is not None:
+                        apply_mask(frame, mask_utils.decode(segmentation), color_det, alpha=0.5)
                 # Save the annotated frame
                 cv2.imwrite(os.path.join(output_folder, '%d.png' % idx), frame)
                 # Call the display function if provided
@@ -462,6 +461,39 @@ class VideoFrameIterator:
         # Reset video
         self.reset_video()
         return 1
+
+def apply_mask(frame, mask, color, alpha=0.5):
+    '''
+    Apply a mask to a frame with a given color and alpha.
+
+    Args:
+        frame: numpy array, the frame to apply the mask on
+        mask: numpy array, the binary mask to apply
+        color: tuple, the color to use for the mask (BGR format)
+        alpha: float, the alpha value to use for blending the mask (default 0.5)
+
+    Returns:
+        numpy array: the frame with the mask applied
+    '''
+     # Resize mask to match frame if needed
+    if mask.shape != frame.shape[:2]:
+        mask = cv2.resize(
+            mask,
+            (frame.shape[1], frame.shape[0]),
+            interpolation=cv2.INTER_NEAREST
+        )
+
+    # Create a color overlay for the mask
+    overlay = np.zeros_like(frame)
+    overlay[:] = color
+
+    # Blend the overlay with the original frame using the alpha value
+    blended = cv2.addWeighted(frame, 1 - alpha, overlay, alpha, 0)
+
+    # Apply the blended overlay only to the masked pixels
+    frame[mask == 1] = blended[mask == 1]
+
+    return frame
     
 def get_bbox(bbox, bbox_format='xywh', bbox_normalized=True, image_size=None):  
     '''
