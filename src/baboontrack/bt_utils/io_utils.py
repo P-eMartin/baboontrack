@@ -9,7 +9,6 @@ import datetime
 import subprocess
 import csv
 import zipfile
-import traceback
 from .json_utils import save_json_file
 
 '''

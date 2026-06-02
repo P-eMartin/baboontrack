@@ -3,11 +3,10 @@ import pdb
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import numpy as np
+import pandas as pd
 # To avoid the error "AttributeError: module 'numpy' has no attribute 'asfarray'" when using motmetrics
 if not hasattr(np, "asfarray"):
     np.asfarray = lambda a, **kwargs: np.asarray(a, dtype=float)
-import copy
-import json
 import csv
 import os
 from .io_utils import print_and_log, save_json_file, get_value_with_precision, save_dict_as_csv, zip_folder
@@ -351,9 +350,98 @@ def mot_gt_to_coco_gt(mot_gt_file, image_size=None, cat_id_override=None, catego
     }
     return coco_gt
 
+def update_eval_csv(
+    csv_path,
+    segment_name,
+    metrics,
+    extra_info=None,
+):
+    """
+    Update or append evaluation results in a CSV file.
 
-## Perform evaluation of the detection and tracking results
-def evaluate_detection(gt_file, detection_file, save_path=None, log=None):
+    Args:
+        csv_path: str
+            Path to CSV file storing all evaluations.
+
+        segment_name: str
+            Unique identifier for the evaluated video/segment.
+
+        metrics: dict
+            COCO evaluation metrics.
+
+        extra_info: dict (optional)
+            Additional metadata (e.g., video length, FPS, model name).
+    """
+
+    # ------------------------------------------------------------
+    # 1. Build row dictionary
+    # ------------------------------------------------------------
+    row = {"segment_name": segment_name}
+
+    # add metrics
+    row.update(metrics)
+
+    # add optional metadata
+    if extra_info is not None:
+        row.update(extra_info)
+
+    # ------------------------------------------------------------
+    # 2. Load existing CSV if it exists
+    # ------------------------------------------------------------
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+    else:
+        df = pd.DataFrame()
+
+    # ------------------------------------------------------------
+    # 3. Update or append row
+    # ------------------------------------------------------------
+    if "segment_name" in df.columns and segment_name in df["segment_name"].values:
+
+        # overwrite existing row
+        df.loc[df["segment_name"] == segment_name, row.keys()] = row.values()
+
+    else:
+        # append new row
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+
+    # ------------------------------------------------------------
+    # 4. Save back
+    # ------------------------------------------------------------
+    df.to_csv(csv_path, index=False)
+
+#####
+## Evaluation of the detection and tracking results
+#####
+def coco_eval(gt_file, detection_file):
+    """
+    Run COCO evaluation and return metrics as a flat dictionary.
+    """
+
+    coco_gt = COCO(gt_file)
+    coco_dt = coco_gt.loadRes(detection_file)
+
+    coco_eval = COCOeval(coco_gt, coco_dt, iouType="bbox")
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
+
+    return {
+        "AP": coco_eval.stats[0],
+        "AP50": coco_eval.stats[1],
+        "AP75": coco_eval.stats[2],
+        "AP_small": coco_eval.stats[3],
+        "AP_medium": coco_eval.stats[4],
+        "AP_large": coco_eval.stats[5],
+        "AR": coco_eval.stats[6],
+        "AR50": coco_eval.stats[7],
+        "AR75": coco_eval.stats[8],
+        "AR_small": coco_eval.stats[9],
+        "AR_medium": coco_eval.stats[10],
+        "AR_large": coco_eval.stats[11],
+    }
+
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -361,30 +449,51 @@ def evaluate_detection(gt_file, detection_file, save_path=None, log=None):
         gt_file: str, path to the ground truth JSON file or zip file in COCO format
         detection_file: str, path to the detection JSON file or zip file in COCO format
         save_path: str, path to save the evaluation results (default None)
-        log: logger, the logger to print the information (default None)
+        extra_info: dict (optional), additional metadata to include in the evaluation results
 
     Returns:
         dict, the evaluation results
     '''
-    coco_gt = COCO(gt_file)
-    coco_dt = coco_gt.loadRes(detection_file)
-    coco_eval = COCOeval(coco_gt, coco_dt, iouType='bbox')
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
-    eval_results = {
-        'AP': coco_eval.stats[0],
-        'AP50': coco_eval.stats[1],
-        'AP75': coco_eval.stats[2],
-        'AP_small': coco_eval.stats[3],
-        'AP_medium': coco_eval.stats[4],
-        'AP_large': coco_eval.stats[5],
-    }
+    metrics = coco_eval(gt_file, detection_file)
     if save_path is not None:
-        save_json_file(eval_results, save_path)
-    return eval_results
+        update_eval_csv(
+            csv_path=save_path,
+            segment_name=name if name is not None else os.path.basename(detection_file).split('.')[0],
+            metrics=metrics,
+            extra_info=extra_info
+        )
+    return metrics
 
-def evaluate_tracking(gt_file, tracking_file, save_path=None, log=None):
+def mot_eval(gt_file, tracking_file):
+    """
+    Evaluate MOT tracking performance and return a flat dictionary.
+    """
+
+    data_root = os.path.dirname(gt_file)
+    seq_name = os.path.basename(gt_file).split('.')[0]
+
+    evaluator = Evaluator(data_root, seq_name, data_type="mot")
+
+    eval_results = evaluator.eval_file(tracking_file)
+    summary = evaluator.get_summary([eval_results], [seq_name])
+
+    # ------------------------------------------------------------
+    # Extract ONLY the OVERALL row (remove duplication noise)
+    # ------------------------------------------------------------
+    if "OVERALL" in summary.index:
+        row = summary.loc["OVERALL"]
+    else:
+        row = summary.iloc[0]
+
+    # convert to clean dict
+    metrics = row.to_dict()
+
+    # add identifier
+    metrics["sequence"] = seq_name
+
+    return metrics
+
+def evaluate_tracking(gt_file, tracking_file, save_path=None, name=None, extra_info=None):
     '''
     Evaluate the tracking performance using MOT metrics.
 
@@ -392,20 +501,19 @@ def evaluate_tracking(gt_file, tracking_file, save_path=None, log=None):
         gt_file: str, path to the ground txt file or zip file in MOT format
         tracking_file: str, path to the tracking results file in MOT format
         save_path: str, path to save the evaluation results (default None)
-        log: logger, the logger to print the information (default None)
+        name: str, name of the sequence (default None)
+        extra_info: dict (optional), additional metadata to include in the evaluation results
 
     Returns:
         dict, the evaluation results
     '''
-    # os.path.join(self.data_root, self.seq_name, 'gt', 'gt.txt')
-    #  __init__(self, data_root, seq_name, data_type)
-    data_root = os.path.dirname(gt_file)
-    seq_name = os.path.basename(gt_file).split('.')[0]
-    evaluator = Evaluator(data_root, seq_name, data_type='mot')
-    eval_results = evaluator.eval_file(tracking_file)
-    summary = evaluator.get_summary([eval_results], [seq_name])
+    metrics = mot_eval(gt_file, tracking_file)
     if save_path is not None:
-        with open(save_path, 'w') as f:
-            f.write(summary.to_string())
-    return summary
+        update_eval_csv(
+            csv_path=save_path,
+            segment_name=name if name is not None else os.path.basename(tracking_file).split('.')[0],
+            metrics=metrics,
+            extra_info=extra_info
+        )
+    return metrics
 

@@ -309,19 +309,24 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
             log=log
         )
 
+        ## Set image size once from the first frame
+        if idx == 0:
+            image_size = detection_dict['image_size'] if 'image_size' in detection_dict else frame.shape[:2][::-1]
+
         ## Update tracker with the detection results
         if tracker_type in ["bytetrack", "botsort"]:
             # Bboxes in (x1, y1, x2, y2) format pixel coordinates and scores
             bboxes = []
             for det in det_result:
                 x, y, w, h = det['bbox']
-                x1 = int(x * detection_dict['image_size'][0])
-                y1 = int(y * detection_dict['image_size'][1])
-                x2 = int((x + w) * detection_dict['image_size'][0])
-                y2 = int((y + h) * detection_dict['image_size'][1])
+                x1 = int(x * image_size[0])
+                y1 = int(y * image_size[1])
+                x2 = int((x + w) * image_size[0])
+                y2 = int((y + h) * image_size[1])
                 bboxes.append([x1, y1, x2, y2])
             bboxes = np.array(bboxes)
-            scores = np.array([det['det_score'] for det in det_result])
+            # Use "score" or "det_score" according to availability
+            scores = np.array([det.get('det_score', det.get('score', 0)) for det in det_result])
             if tracker_type == "bytetrack":
                 _current_tracks = tracker.update(bboxes, scores)
             elif tracker_type == "botsort":
@@ -333,7 +338,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
             for track in _current_tracks:
                 x1, y1, w, h = track.tlwh
                 tmp = {}
-                tmp['bbox'] = [float(x1 / detection_dict['image_size'][0]), float(y1 / detection_dict['image_size'][1]), float(w / detection_dict['image_size'][0]), float(h / detection_dict['image_size'][1])]
+                tmp['bbox'] = [float(x1 / image_size[0]), float(y1 / image_size[1]), float(w / image_size[0]), float(h / image_size[1])]
                 tmp['track_id'] = track.track_id
                 tmp['det_score'] = float(track.score)
                 n_tracks = max(n_tracks, track.track_id)
@@ -346,7 +351,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, n_tracks), log=log, completed=True)
 
     # Saving
-    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': detection_dict['image_size']}
+    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': image_size}
     save_json_file(output_results, output_file)
     return output_results
 
@@ -442,10 +447,8 @@ def main(args, check_stop=false_check, log=None):
     if args.eval_detection or args.eval_tracking or args.eval_classification:
         # With class ID being the track id but also the det ID
         # gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
-        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-0-546-mot.zip')
+        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1-546-mot.zip')
         boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1:3]]
-        if boundaries[0] == 0:
-            boundaries[0] = 1
         gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
@@ -487,7 +490,13 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_detection(
             gt_det_coco_file,
             det_coco_file,
-            save_path=os.path.join(args.output, 'det_eval_%s_%s.json' % (str(boundaries), os.path.basename(args.det_model).split('.')[0])), log=log)
+            name='%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            save_path=os.path.join(args.output, 'det_eval.csv'),
+            extra_info={
+                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "resolution": "%dx%d" % (image_size[0], image_size[1])
+            },
+        )
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
     # Tracking
@@ -533,8 +542,12 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_tracking(
             gt_track_mot_folder,
             track_mot_file,
-            save_path=os.path.join(args.output, 'track_eval_%s_%s.txt' % (str(boundaries), os.path.basename(args.det_model).split('.')[0])),
-            log=log
+            name='%s_%s%s' % (args.det_model,args.tracker_type if args.tracker_type else 'default', ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            save_path=os.path.join(args.output, 'track_eval.csv'),
+            extra_info={
+                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "resolution": "%dx%d" % (image_size[0], image_size[1])
+            },
         )
         print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
     classes = ['NoID']
@@ -560,8 +573,16 @@ def main(args, check_stop=false_check, log=None):
             labels=classes,
             boundaries=boundaries
         )
-        eval_results = evaluate_detection(gt_class_coco_file, class_coco_file, log=log)
-        save_json_file(eval_results, os.path.join(args.output, 'classification_eval_results.json'))
+        eval_results = evaluate_detection(
+            gt_class_coco_file,
+            class_coco_file,
+            save_path=os.path.join(args.output, 'class_eval.csv'),
+            name='%s_%s%s' % (args.det_model,args.tracker_type if args.tracker_type else 'default', ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            extra_info={
+                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "resolution": "%dx%d" % (image_size[0], image_size[1])
+            },
+        )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
     # # Save MOT format
