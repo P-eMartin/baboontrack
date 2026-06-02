@@ -487,7 +487,7 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_detection(
             gt_det_coco_file,
             det_coco_file,
-            save_path=os.path.join(args.output, 'det_eval_%s.json' % (os.path.basename(args.det_model).split('.')[0])), log=log)
+            save_path=os.path.join(args.output, 'det_eval_%s_%s.json' % (str(boundaries), os.path.basename(args.det_model).split('.')[0])), log=log)
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
     # Tracking
@@ -533,7 +533,7 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_tracking(
             gt_track_mot_folder,
             track_mot_file,
-            save_path=os.path.join(args.output, 'track_eval_%s_%s.txt' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
+            save_path=os.path.join(args.output, 'track_eval_%s_%s.txt' % (str(boundaries), os.path.basename(args.det_model).split('.')[0])),
             log=log
         )
         print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
