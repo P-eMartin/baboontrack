@@ -89,6 +89,7 @@ def run_command(command, log=None):
     """
 
     try:
+        print_and_log(f"Running command: {' '.join(command)}", log=log)
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -101,7 +102,7 @@ def run_command(command, log=None):
 
             # Skip progress-bar style updates, empty lines and warnings.warn
             if '%' in line or line.strip() == '' or 'warnings.warn' in line or "FutureWarning" in line:
-                print('\t' + line, end='\r', flush=True)
+                print(line, end='\r', flush=True)
             else:
                 print_and_log('\t' + line, log=log)
         return_code = process.wait()

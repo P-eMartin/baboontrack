@@ -469,11 +469,9 @@ def main(args, check_stop=false_check, log=None):
         # Load detection results if not already loaded
         if isinstance(detection_dict, str):
             print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
-            _detection_dict = load_json_file(detection_dict)
-            if 'detections' in _detection_dict:
-                detection_dict = _detection_dict
-            else:
-                detection_dict = {'detections': coco_to_perso_format(_detection_dict, image_size=image_size)}
+            detection_dict = load_json_file(detection_dict)
+        if isinstance(detection_dict, list):
+            detection_dict = {'detections': coco_to_perso_format(detection_dict, image_size=image_size)}
         # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
         gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, cat_id_override=1, categories=labels_detection)
@@ -514,13 +512,11 @@ def main(args, check_stop=false_check, log=None):
 
     if args.eval_tracking:
         # Load tracking results if not already loaded
-        if not isinstance(tracking_dict, dict):
+        if isinstance(tracking_dict, str):
             print_and_log('Loading tracking_dict from %s' % (tracking_dict), log=log)
-            _tracking_dict = load_json_file(tracking_dict)
-            if 'detections' in _tracking_dict:
-                tracking_dict = _tracking_dict
-            else:
-                tracking_dict = {'detections': coco_to_perso_format(_tracking_dict, image_size=image_size)}
+            tracking_dict = load_json_file(tracking_dict)
+        if isinstance(tracking_dict, list):
+            tracking_dict = {'detections': coco_to_perso_format(tracking_dict, image_size=image_size)}
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
