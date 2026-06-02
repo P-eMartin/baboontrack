@@ -220,7 +220,10 @@ def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_
         command = ['conda', 'run', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
         run_command(command, log=log)
-        frame_shift += chunk_size - overlap
+        if idx == 0:
+            frame_shift += chunk_size - overlap
+        else:
+            frame_shift += chunk_size - 2*overlap
         if clean_up:
             shutil.rmtree(chunk_dir)
         coco_files.append(coco_file)
