@@ -33,7 +33,7 @@ jobs:
     
     - name: Generate documentation
       run: |
-        pdoc --docformat google src/baboontrack --o docs
+        pdoc --docformat google src/baboontrack --o docs --exclude baboontrack.bt_utils.sam3_run
 
     - name: Deploy documentation to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
