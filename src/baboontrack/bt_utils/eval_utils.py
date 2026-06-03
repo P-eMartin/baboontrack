@@ -35,9 +35,12 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
     for det in coco_list:
         img_id = det['image_id']
         if prev_img_id != img_id:
-            prev_img_id = img_id
             perso_list.append(det_list)
             det_list = []
+            # Add empty lists for the frames between the previous image ID and the current image ID
+            for _ in range(img_id - prev_img_id - 1):
+                perso_list.append([])
+            prev_img_id = img_id
         det_list.append({
             'image_id': det['image_id'] + frame_id_offset,
             'category_id': det['category_id'],
