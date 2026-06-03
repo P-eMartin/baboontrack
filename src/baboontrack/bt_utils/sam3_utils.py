@@ -206,14 +206,14 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
     print_and_log("Processing video in %d chunks of %d frames with an overlap of %d frames." % (len(chunk_dirs), chunk_size, overlap), log=log)
 
     # Check if all coco files already computed
-    if all([os.path.exists(os.path.join(chunk_dir, 'coco_list.json')) for chunk_dir in chunk_dirs]):
+    coco_files = [os.path.join(chunk_dir, 'sam3_%s.json' % text_prompt.replace(" ", "_")) for chunk_dir in chunk_dirs]
+    if all(os.path.exists(coco_file) for coco_file in coco_files):
         print_and_log("All coco files already exist. Skipping SAM processing.", log=log)
-        coco_files = [os.path.join(chunk_dir, 'coco_list.json') for chunk_dir in chunk_dirs]
     else:
         coco_files = []
         for idx, chunk_dir in enumerate(chunk_dirs):
             # Process each chunk in another script to avoid memory overload from the video predictor
-            coco_file = os.path.join(chunk_dir, 'coco_list.json')
+            coco_file = os.path.join(chunk_dir, 'sam3_%s.json' % text_prompt.replace(" ", "_"))
             elapsed_time = time.time() - start_time
             progress_bar(
                 idx,
