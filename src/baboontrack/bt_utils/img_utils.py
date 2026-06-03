@@ -421,7 +421,7 @@ class VideoFrameIterator:
                     cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
                     # Det score and Track ID - top of the box
                     # text = ('%s (%.2g) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
-                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None else 'Track %d' % (track_id)))
+                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None or 'Track ' in str(det) else 'Track %d' % (track_id))).replace('(0.', '(.').replace('(-0.', '(-.')
                     spacing = int(thickness*1.5)
                     txt_w, txt_h = write_text(frame, text, (bbox[0], bbox[1] - spacing), fontscale, color_bg=color_det, thickness=thickness, font=font)
                     # Class ID and Class ID score - above the det text
