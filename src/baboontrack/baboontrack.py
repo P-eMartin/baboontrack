@@ -186,7 +186,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, dis
     if det_model is not None:
         if det_model == "sam3":
             from .bt_utils.sam3_utils import process_video_with_sam
-            return process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
+            return process_video_with_sam(my_video, output_file, text_prompt="an Animal", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
         if os.path.exists(det_model):
             print_and_log('Loading Megadetector model from %s' % (det_model), log=log)
         else:

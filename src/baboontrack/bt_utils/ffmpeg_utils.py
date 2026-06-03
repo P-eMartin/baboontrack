@@ -91,7 +91,6 @@ def run_command(command, log=None):
 
     try:
         print_and_log(f"Running command: {' '.join(command)}", log=log)
-        pdb.set_trace()
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,

@@ -6,7 +6,7 @@ import gc
 import sys
 import pdb
 from pycocotools import mask as mask_utils
-from json_utils import save_json_file
+from json_utils import save_json_file, save_dict_to_txt
 sys.path.append(os.path.dirname(__file__))  # Add sam3 directory to the system path to import sam3
 from sam3.model_builder import build_sam3_video_predictor # type: ignore
 
@@ -61,7 +61,6 @@ def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_si
         request=dict(
             type="propagate_in_video",
             session_id=session_id,
-            output_prob_thresh=0.3
         )
     )):
         to_coco_format(response, coco_list, frame_shift=frame_shift)
@@ -80,7 +79,9 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
         response = video_predictor.handle_request(
             request=dict(
                 type="start_session",
-                resource_path=video_path
+                resource_path=video_path,
+                offload_video_to_cpu=True,
+                offload_state_to_cpu=True,
             )
         )
         session_id = response["session_id"]
@@ -90,9 +91,10 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
                 session_id=session_id,
                 frame_index=0,
                 text=text_prompt,
-                output_prob_thresh=0.3
             )
         )
+        # response = video_predictor.handle_request(request=dict(type="add_prompt",session_id=session_id,frame_index=0,text=text_prompt,output_prob_thresh=0,clear_old_points=False,clear_old_boxes=False))
+        # tmp=video_predictor.handle_stream_request(request=dict(type="propagate_in_video",session_id=session_id,output_prob_thresh=0.3,start_frame_idx=0))
         gpu_id = torch.cuda.current_device()
         gpu_tot = torch.cuda.get_device_properties(gpu_id).total_memory / 1024**3
         print('Propagating in video. GPU memory (used/res/total): %.2f/%.2f/%.2f Gb' % (
@@ -134,7 +136,7 @@ def get_args():
     )
     parser.add_argument(
         '-t', '--text_prompt',
-        default='a Baboon',
+        default='an animal',
         type=str,
         help='Text prompt to use for the SAM model to detect the objects of interest in the video.'
     )

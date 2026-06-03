@@ -181,7 +181,7 @@ def merge_detections(coco_files,iou_threshold=0.8):
     merged_detections.sort(key=lambda d: (d["image_id"], d["track_id"]))
     return merged_detections
 
-def process_video_with_sam(my_video, output_file, text_prompt="a Baboon", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=None):
+def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=None):
     # Initialization
     start_time = time.time()
     ## Frame extraction
