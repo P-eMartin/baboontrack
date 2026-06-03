@@ -60,7 +60,7 @@ def to_coco_format(sam_output, coco_list, frame_shift=0):
         }
         coco_list.append(coco_output)
 
-def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=15, clear_freq=50):
+def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=10, clear_freq=50):
     # we will just propagate from frame 0 to the end of the video
     for idx, response in enumerate(predictor.handle_stream_request(
         request=dict(
@@ -114,6 +114,11 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
             coco_list,
             frame_shift=frame_shift
         )
+        print('Finished propagating in video. GPU memory (used/res/total): %.2f/%.2f/%.2f Gb' % (
+            torch.cuda.memory_allocated(gpu_id) / 1024**3,
+            torch.cuda.memory_reserved(gpu_id) / 1024**3,
+            gpu_tot
+        ))
         # End the session
         video_predictor.handle_request(request=dict(type="close_session", session_id=session_id))
     # Save the coco list to a json file

@@ -184,17 +184,10 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     start_time = time.time()
 
     ## Megadetector
-    if det_model is not None:
-        if det_model == "sam3":
-            from .bt_utils.sam3_utils import process_video_with_sam
-            return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
-        if os.path.exists(det_model):
-            print_and_log('Loading Megadetector model from %s' % (det_model), log=log)
-        else:
-            print_and_log('Megadetector model path %s does not exist. Loading default model.' % (det_model), log=log)
-            det_model = 'MDV5B'
-    else:
-        det_model = 'MDV5B'
+    if det_model == "sam3":
+        from .bt_utils.sam3_utils import process_video_with_sam
+        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
+    
     model = run_detector.load_detector(
         det_model,
         detector_options={'device':device}
@@ -414,7 +407,7 @@ def false_check(log=None):
     '''
     return False
 
-def main(args, check_stop=false_check, log=None):
+def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     '''
     Main function to process the video.
     Perform first the detection and tracking of the Baboons.
@@ -443,10 +436,8 @@ def main(args, check_stop=false_check, log=None):
     # my_video.check_video()
 
     # Load ground truth if evaluation is enabled
-    if args.eval_detection or args.eval_tracking or args.eval_classification:
+    if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:
         # With class ID being the track id but also the det ID
-        # gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1639-2000-mot.zip')
-        gt_file_class_mot = os.path.join(os.path.dirname(args.input_video), 'frame-1-546-mot.zip')
         boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1:3]]
         gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
@@ -617,6 +608,29 @@ def main(args, check_stop=false_check, log=None):
     print_and_log("Processing of %s finished in %ds." % (args.input_video, time.time()-start_time), log=log)
     close_log(log)
 
+def main_loop(args, log=None):
+    '''
+    Main loop to process the video. It allows to loop over the video and process it multiple times
+    using different combination of parameters.
+
+    Args:
+        args: argparse.Namespace, the arguments
+        log: logger, the logger to print the information
+    '''
+    prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
+    tracker_types = [None, 'bytetrack', 'deepsort', 'botsort']
+    det_models = ['MDv5a', 'MDv5b', 'sam3']
+    gt_files_name = ['frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
+    for det_model in det_models:
+        args.det_model = det_model
+        for tracker_type in tracker_types:
+            args.tracker_type = tracker_type
+            for prompt in prompts if det_model == 'sam3' else ['']:
+                args.text_prompt = prompt
+                print_and_log('Running det %s%s and tracker %s' % (det_model, ' with prompt "%s"' % (prompt) if prompt else '', tracker_type), log=log)
+                for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video), name) for name in gt_files_name]:
+                    main(args, gt_file_class_mot=gt_file_class_mot, log=log)
+
 
 def split_or_empty(string):
     '''
@@ -747,6 +761,11 @@ def get_args():
         action='store_true',
         help=helptext_gui
     )
+    parser.add_argument(
+        '-l', '--loop',
+        action='store_true',
+        help=helptext_loop
+    )
     args = parser.parse_args()
     args.parser = parser
     infer_args_name(args)
@@ -781,17 +800,26 @@ def run(**kwargs):
     '''
     # Check arguments
     args = check_args(**kwargs)
-    
+
+    main_funct = main_loop if args.loop else main
+
     # Send arguments to main
     if args.gui:
         # Use GUI
         from .gui import run_with_gui
-        run_with_gui(args, main, check_args_fct=infer_args_name)
+        run_with_gui(args, main_funct, check_args_fct=infer_args_name)
     else:
         os.makedirs(os.path.join(args.output, 'logs'), exist_ok=True)
         log = setup_logger(log_file=os.path.join(args.output, 'logs', '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))))
         print_and_log('Starting BaboonTrack without GUI with arguments: %s' % (args), log=log)
-        main(args, log=log)
+        # Check if input is video or has frames. If not, loop over the folder and process each video or set of frames separately.
+        if os.path.isfile(args.input_video) or (os.path.isdir(args.input_video) and any(os.path.isfile(os.path.join(args.input_video, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in os.listdir(args.input_video))):
+            main_funct(args, log=log)
+        else:
+            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            for input_path in input_list:
+                args.input_video = input_path
+                main_funct(args, log=log)
         close_log(log)
     
     # Finish

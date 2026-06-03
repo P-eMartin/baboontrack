@@ -67,3 +67,6 @@ Options:
 helptext_text_prompt = '''Text prompt to use for SAM 3 tracking. Default: "an animal".
 This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.
 '''
+
+helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
+'''
