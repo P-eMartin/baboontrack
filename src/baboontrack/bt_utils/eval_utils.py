@@ -90,7 +90,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                         get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                     ],
-                    'score': get_value_with_precision(det.get('det_score', 1)),
+                    'score': get_value_with_precision(det.get('det_score', det.get('score', 1))),
                     'attributes': {
                         'name': 'NoID',
                         'track_id': int(det['track_id'] + 1),
@@ -320,7 +320,7 @@ def mot_to_coco_format(mot_dict, image_size=None, cat_id_override=None):
                     get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                     get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                 ],
-                'score': get_value_with_precision(det['det_score'] if 'det_score' in det else 1),
+                'score': get_value_with_precision(det.get('score', det.get('det_score', 1))),
                 'iscrowd': 0,
                 'area': get_value_with_precision(det['bbox'][2] * det['bbox'][3] if image_size is None else det['bbox'][2] * image_size[0] * det['bbox'][3] * image_size[1], 10),
                 'attributes': {

@@ -1,5 +1,6 @@
 
 import os
+import pdb
 from tracemalloc import start
 import cv2
 from matplotlib.pyplot import step
@@ -406,7 +407,7 @@ class VideoFrameIterator:
                     bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
                     track_id = ann['track_id']
                     det = detection_classes[ann['det']] if detection_classes else ann['det']
-                    det_score = ann.get('det_score', ann.get('score', None))
+                    det_score = ann.get('score', ann.get('det_score'))
                     class_id = classification_classes[ann['id']] if classification_classes else ann['id']
                     id_score = ann.get('id_score', None)
                     if detection_color_dict is not None:
@@ -420,7 +421,7 @@ class VideoFrameIterator:
                     cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
                     # Det score and Track ID - top of the box
                     # text = ('%s (%.2g) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
-                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None or 'Track ' in str(det) else 'Track %d' % (track_id)))
+                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None else 'Track %d' % (track_id)))
                     spacing = int(thickness*1.5)
                     txt_w, txt_h = write_text(frame, text, (bbox[0], bbox[1] - spacing), fontscale, color_bg=color_det, thickness=thickness, font=font)
                     # Class ID and Class ID score - above the det text

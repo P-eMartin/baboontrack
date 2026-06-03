@@ -138,7 +138,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             detection['id_score'] = 0
         
         detection['det'] = int(detection['category'])-1
-        detection['det_score'] = detection['conf']
+        detection['score'] = detection['conf']
         detection['visibility'] = get_value_with_precision(1-max([match['iou'] for match in matches if match['det_idx'] == idx and match['track_id'] != detection['track_id']], default=0))
         # Remove the normalized keys
         del detection['category']
@@ -326,7 +326,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 bboxes.append([x1, y1, x2, y2])
             bboxes = np.array(bboxes)
             # Use "score" or "det_score" according to availability
-            scores = np.array([det.get('det_score', det.get('score', 0)) for det in det_result])
+            scores = np.array([det.get('score', det.get('det_score', 0)) for det in det_result])
             if tracker_type == "bytetrack":
                 _current_tracks = tracker.update(bboxes, scores)
             elif tracker_type == "botsort":
@@ -340,7 +340,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 tmp = {}
                 tmp['bbox'] = [float(x1 / image_size[0]), float(y1 / image_size[1]), float(w / image_size[0]), float(h / image_size[1])]
                 tmp['track_id'] = track.track_id
-                tmp['det_score'] = float(track.score)
+                tmp['score'] = float(track.score)
                 n_tracks = max(n_tracks, track.track_id)
                 current_tracks.append(tmp)
             all_tracks.append(current_tracks)
@@ -390,10 +390,8 @@ def classify(detection_dict, my_video, output_file, log=None):
             track_id = det['track_id']
             det['det'] = track_id-1
             n_tracks = max(n_tracks, track_id)
-            if 'det_score' not in det:
-                det['det_score'] = None
-            if 'id' not in det:
-                det['id'] = 0
+            det['score'] = det.get('det_score', det.get('score', None))
+            det['id'] = det.get('id', 0)
             det['id_score'] = None
 
     # Saving
