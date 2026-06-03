@@ -73,7 +73,7 @@ def compute_mask_iou(det1, det2):
     return float(mask_utils.iou([rle1], [rle2], [0])[0][0])
 
 
-def merge_detections(coco_files,iou_threshold=0.8):
+def merge_detections(coco_files, iou_threshold=0.8):
     '''
     Merge detections coming from overlapping chunks.
         1) Load all detections from every chunk.
@@ -146,12 +146,16 @@ def merge_detections(coco_files,iou_threshold=0.8):
                     graph.add_edge(track_a, track_b, weight=float(mean_iou))
 
     # STEP 5 - ASSIGN GLOBAL TRACK IDS
+    components = list(nx.connected_components(graph))
+    component_infos = []
+    for component in components:
+        first_occurrence = min((det["_chunk_idx"], det["image_id"]) for track in component for det in tracks[track])
+        component_infos.append((first_occurrence, component))
+    component_infos.sort(key=lambda x: x[0])
     track_mapping = {}
-    global_track_id = 0
-    for component in nx.connected_components(graph):
+    for global_track_id, (_, component) in enumerate(component_infos):
         for local_track in component:
-            track_mapping[local_track] = global_track_id
-        global_track_id += 1
+            track_mapping[local_track] = global_track_id+1
 
     # STEP 6 - REWRITE TRACK IDS
     rewritten_detections = []
@@ -171,8 +175,8 @@ def merge_detections(coco_files,iou_threshold=0.8):
         if len(dets) == 1:
             merged_detections.append(dets[0])
             continue
-        # We keep the detection with the largest area.
-        best_det = max(dets, key=lambda d: float(mask_utils.area(d["segmentation"])))
+        # We keep the detection with the largest score.
+        best_det = max(dets, key=lambda d: float(d["score"]))
         merged_detections.append(best_det)
 
     # STEP 8 - CLEAN INTERNAL FIELDS
@@ -197,37 +201,42 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
     else:
         my_video.extract_all_frames_in_chunks(tmp_vid, chunk_size, overlap)
     chunk_dirs = sorted([os.path.join(tmp_vid, f) for f in os.listdir(tmp_vid) if os.path.isdir(os.path.join(tmp_vid, f))])
-    coco_files = []
     frame_shift = 0
     ram_tot = psutil.virtual_memory().total / 1024**3
     print_and_log("Processing video in %d chunks of %d frames with an overlap of %d frames." % (len(chunk_dirs), chunk_size, overlap), log=log)
 
-    for idx, chunk_dir in enumerate(chunk_dirs):
-        # Process each chunk in another script to avoid memory overload from the video predictor
-        coco_file = os.path.join(chunk_dir, 'coco_list.json')
-        elapsed_time = time.time() - start_time
-        progress_bar(
-            idx,
-            len(chunk_dirs),
-            title = 'Processing chunk %s with frame shift %d (RAM %.2f/%.2f%s)' % (
-                chunk_dir,
-                frame_shift,
-                (ram_tot - psutil.virtual_memory().available/1024**3),
-                ram_tot,
-                ' (%ds left)' % (elapsed_time/idx*(len(chunk_dirs)-idx)) if idx > 0 else ''
-            ),
-            completed=True, # Because other prints
-            log=log
-        )
-        command = ['conda', 'run', '--no-capture-output', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
-                   '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
-        run_command(command, log=log)
-        frame_shift += chunk_size - overlap
+    # Check if all coco files already computed
+    if all([os.path.exists(os.path.join(chunk_dir, 'coco_list.json')) for chunk_dir in chunk_dirs]):
+        print_and_log("All coco files already exist. Skipping SAM processing.", log=log)
+        coco_files = [os.path.join(chunk_dir, 'coco_list.json') for chunk_dir in chunk_dirs]
+    else:
+        coco_files = []
+        for idx, chunk_dir in enumerate(chunk_dirs):
+            # Process each chunk in another script to avoid memory overload from the video predictor
+            coco_file = os.path.join(chunk_dir, 'coco_list.json')
+            elapsed_time = time.time() - start_time
+            progress_bar(
+                idx,
+                len(chunk_dirs),
+                title = 'Processing chunk %s with frame shift %d (RAM %.2f/%.2f%s)' % (
+                    chunk_dir,
+                    frame_shift,
+                    (ram_tot - psutil.virtual_memory().available/1024**3),
+                    ram_tot,
+                    ' (%ds left)' % (elapsed_time/idx*(len(chunk_dirs)-idx)) if idx > 0 else ''
+                ),
+                completed=True, # Because other prints
+                log=log
+            )
+            command = ['conda', 'run', '--no-capture-output', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), '_sam3_run.py'),
+                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
+            run_command(command, log=log)
+            frame_shift += chunk_size - overlap
 
-        if clean_up:
-            shutil.rmtree(chunk_dir)
-        coco_files.append(coco_file)
-    progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), completed=True, log=log)
+            if clean_up:
+                shutil.rmtree(chunk_dir)
+            coco_files.append(coco_file)
+        progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), completed=True, log=log)
 
     # Merge coco files
     merged_detections = merge_detections(coco_files, iou_threshold=0.8)

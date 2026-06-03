@@ -57,4 +57,13 @@ helptext_eval_classification = '''Evaluate the classification performance using 
 '''
 
 helptext_det_model = '''Model to use for detection. Default: "md_v5b.0.0.pt".
+Options:
+- "MDv5a": MegaDetector model trained on a dataset of animals in the wild.
+- "MDv5b": Same but different training hyperparameters.
+- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.
+- "sam3": Use SAM 3 for detection and tracking.
+'''
+
+helptext_text_prompt = '''Text prompt to use for SAM 3 tracking. Default: "an animal".
+This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.
 '''

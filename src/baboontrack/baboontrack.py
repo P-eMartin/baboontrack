@@ -151,7 +151,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     return track_id
 
 
-def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, display_fct=None, det_model='md_v5b.0.0.pt', log=None):
+def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det_model='md_v5b.0.0.pt', text_prompt="an animal", log=None, display_fct=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -163,6 +163,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, dis
         score: float, the minimum detection score (default 0.5)
         display_fct: function, the function to display the results in real-time (default None)
         det_model: str, the path to the detection model (default 'md_v5b.0.0.pt')
+        text_prompt: str, the text prompt to use for SAM 3 tracking (default "an animal")
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -186,7 +187,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, dis
     if det_model is not None:
         if det_model == "sam3":
             from .bt_utils.sam3_utils import process_video_with_sam
-            return process_video_with_sam(my_video, output_file, text_prompt="an Animal", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
+            return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
         if os.path.exists(det_model):
             print_and_log('Loading Megadetector model from %s' % (det_model), log=log)
         else:
@@ -452,13 +453,15 @@ def main(args, check_stop=false_check, log=None):
     # Detection
     ## TODO: Detection - tracking with SAM 3
     if check_stop(log=log): return 0
+    det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if args.det_model == "sam3" else "")
     detection_dict = detect(
         my_video,
-        os.path.join(args.output, 'det_%s.json') % (os.path.basename(args.det_model).split('.')[0]),
+        os.path.join(args.output, 'det_%s.json') % det_model_str,
         device=args.device,
         score=args.det_score,
         tracking_size=args.tracking_size,
         det_model=args.det_model,
+        text_prompt=args.text_prompt,
         log=log,
         display_fct=args.display_fct
     )
@@ -478,7 +481,7 @@ def main(args, check_stop=false_check, log=None):
         save_json_file(gt_dict_coco_det, gt_det_coco_file)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
-            os.path.join(args.output, 'det_coco_format_%s' % (os.path.basename(args.det_model).split('.')[0])),
+            os.path.join(args.output, 'det_coco_format_%s' % det_model_str),
             image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
@@ -486,7 +489,7 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_detection(
             gt_det_coco_file,
             det_coco_file,
-            name='%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_model_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
             save_path=os.path.join(args.output, 'det_eval.csv'),
             extra_info={
                 "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
@@ -497,10 +500,11 @@ def main(args, check_stop=false_check, log=None):
 
     # Tracking
     if check_stop(log=log): return 0
+    det_tracker_str = '%s_%s' % (det_model_str, args.tracker_type if args.tracker_type else 'default')
     tracking_dict = track(
         my_video,
         detection_dict,
-        os.path.join(args.output, 'track_%s_%s.json' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
+        os.path.join(args.output, 'track_%s.json' % det_tracker_str),
         device=args.device,
         tracking_size=args.tracking_size,
         score=args.det_score,
@@ -536,7 +540,7 @@ def main(args, check_stop=false_check, log=None):
         eval_results = evaluate_tracking(
             gt_track_mot_folder,
             track_mot_file,
-            name='%s_%s%s' % (args.det_model,args.tracker_type if args.tracker_type else 'default', ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
             save_path=os.path.join(args.output, 'track_eval.csv'),
             extra_info={
                 "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
@@ -551,7 +555,7 @@ def main(args, check_stop=false_check, log=None):
     classification_dict = classify(
         tracking_dict,
         my_video,
-        os.path.join(args.output, 'class_%s_%s.json' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
+        os.path.join(args.output, 'class_%s.json' % (det_tracker_str)),
         log=log
     )
     if check_stop(log=log): return 0
@@ -571,7 +575,7 @@ def main(args, check_stop=false_check, log=None):
             gt_class_coco_file,
             class_coco_file,
             save_path=os.path.join(args.output, 'class_eval.csv'),
-            name='%s_%s%s' % (args.det_model,args.tracker_type if args.tracker_type else 'default', ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
             extra_info={
                 "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
@@ -600,7 +604,7 @@ def main(args, check_stop=false_check, log=None):
         my_video.reset_video()
         my_video.plot_annotations(
             classification_dict['detections'],
-            os.path.join(args.output, 'video_demo_%s_%s.mp4' % (os.path.basename(args.det_model).split('.')[0], args.tracker_type if args.tracker_type else 'default')),
+            os.path.join(args.output, 'video_demo_%s.mp4' % (det_tracker_str)),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=classification_dict['detection_classes'],
@@ -716,6 +720,12 @@ def get_args():
         type=str,
         default=None,
         help=helptext_tracker_type
+    )
+    parser.add_argument(
+        '-p', '--text_prompt',
+        type=str,
+        default="an animal",
+        help=helptext_text_prompt
     )
     parser.add_argument(
         '-e', '--eval_detection',
