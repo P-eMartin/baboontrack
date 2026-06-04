@@ -193,9 +193,9 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     start_time = time.time()
 
     ## Megadetector
-    if det_model == "sam3":
+    if "sam3" in det_model:
         from .bt_utils.sam3_utils import process_video_with_sam
-        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=log)
+        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
     
     model = run_detector.load_detector(
         det_model,
@@ -450,7 +450,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     # Detection
     ## TODO: Detection - tracking with SAM 3
     if check_stop(log=log): return 0
-    det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if args.det_model == "sam3" else "")
+    det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if 'sam3' in args.det_model else "")
     detection_dict = detect(
         my_video,
         os.path.join(args.output, 'det_%s.json') % det_model_str,
@@ -618,13 +618,13 @@ def main_loop(args, log=None):
     '''
     prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
     tracker_types = [None, 'bytetrack', 'deepsort', 'botsort']
-    det_models = ['MDv5a', 'MDv5b', 'sam3']
+    det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
     gt_files_name = ['frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
     for det_model in det_models:
         args.det_model = det_model
         for tracker_type in tracker_types:
             args.tracker_type = tracker_type
-            for prompt in prompts if det_model == 'sam3' else ['']:
+            for prompt in prompts if 'sam3' in det_model else ['']:
                 args.text_prompt = prompt
                 print_and_log('Running det %s%s and tracker %s' % (det_model, ' with prompt "%s"' % (prompt) if prompt else '', tracker_type), log=log)
                 for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video), name) for name in gt_files_name]:

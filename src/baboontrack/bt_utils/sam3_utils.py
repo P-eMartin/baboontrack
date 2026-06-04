@@ -185,7 +185,7 @@ def merge_detections(coco_files, iou_threshold=0.8):
     merged_detections.sort(key=lambda d: (d["image_id"], d["track_id"]))
     return merged_detections
 
-def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, log=None):
+def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, det_only=False, log=None):
     # Initialization
     start_time = time.time()
     ## Frame extraction
@@ -206,14 +206,14 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
     print_and_log("Processing video in %d chunks of %d frames with an overlap of %d frames." % (len(chunk_dirs), chunk_size, overlap), log=log)
 
     # Check if all coco files already computed
-    coco_files = [os.path.join(chunk_dir, 'sam3_%s.json' % text_prompt.replace(" ", "_")) for chunk_dir in chunk_dirs]
+    coco_files = [os.path.join(chunk_dir, 'sam3%s_%s.json' % ('d' if det_only else '', text_prompt.replace(" ", "_"))) for chunk_dir in chunk_dirs]
     if all(os.path.exists(coco_file) for coco_file in coco_files):
         print_and_log("All coco files already exist. Skipping SAM processing.", log=log)
     else:
         coco_files = []
         for idx, chunk_dir in enumerate(chunk_dirs):
             # Process each chunk in another script to avoid memory overload from the video predictor
-            coco_file = os.path.join(chunk_dir, 'sam3_%s.json' % text_prompt.replace(" ", "_"))
+            coco_file = os.path.join(chunk_dir, 'sam3%s_%s.json' % ('d' if det_only else '', text_prompt.replace(" ", "_")))
             elapsed_time = time.time() - start_time
             progress_bar(
                 idx,
@@ -229,7 +229,7 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
                 log=log
             )
             command = ['conda', 'run', '--no-capture-output', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
-                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
+                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift), '-d' if det_only else '']
             run_command(command, log=log)
             frame_shift += chunk_size - overlap
 

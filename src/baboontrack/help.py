@@ -62,6 +62,7 @@ Options:
 - "MDv5b": Same but different training hyperparameters.
 - path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.
 - "sam3": Use SAM 3 for detection and tracking.
+- "sam3_det": Use SAM 3 for detection only.
 '''
 
 helptext_text_prompt = '''Text prompt to use for SAM 3 tracking. Default: "an animal".
