@@ -426,10 +426,11 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     Returns:
         int, 1 if the function ran successfully
     '''
-    # Check if there is an input
+    # Path checks and output folder creation
     if not os.path.exists(args.input_video):
         print_and_log('Error: input %s must be a file or a folder' % (args.input_video), log=log, to_print=False)
         raise ValueError('No input provided.')
+    os.makedirs(args.output, exist_ok=True)
     
     # Chrono
     start_time = time.time()
