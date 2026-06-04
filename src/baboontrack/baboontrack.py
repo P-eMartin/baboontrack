@@ -195,7 +195,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     ## Megadetector
     if "sam3" in det_model:
         from .bt_utils.sam3_utils import process_video_with_sam
-        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=400, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
+        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=200, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
     
     model = run_detector.load_detector(
         det_model,

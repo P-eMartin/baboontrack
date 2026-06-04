@@ -189,7 +189,7 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
     # Initialization
     start_time = time.time()
     ## Frame extraction
-    tmp_vid = os.path.join(tmp_dir, os.path.basename(my_video.path).split(".")[0])
+    tmp_vid = os.path.join(tmp_dir, "%s_chunksize_%d_overlap_%d" % (os.path.basename(my_video.path).split(".")[0], chunk_size, overlap))
     if os.path.exists(tmp_vid):
         if len(my_video) == len(get_all_files_in_folder(tmp_vid, extensions=(".jpg", ".png")))-overlap*(len(os.listdir(tmp_vid))-1):
             print_and_log(f"Frames already extracted in '{tmp_vid}'. Skipping extraction.", log=log)
@@ -229,7 +229,9 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
                 log=log
             )
             command = ['conda', 'run', '--no-capture-output', '-n', 'sam3', 'python', os.path.join(os.path.dirname(__file__), 'sam3_run.py'),
-                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift), '-d' if det_only else '']
+                    '-i', chunk_dir, '-o', coco_file, '-t', text_prompt, '-f', str(frame_shift)]
+            if det_only:
+                command.append('-d')
             run_command(command, log=log)
             frame_shift += chunk_size - overlap
 

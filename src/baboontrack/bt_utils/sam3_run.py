@@ -60,12 +60,12 @@ def to_coco_format(sam_output, coco_list, frame_shift=0):
         }
         coco_list.append(coco_output)
 
-def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=10, clear_freq=50):
+def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_size=1, clear_freq=50):
     # we will just propagate from frame 0 to the end of the video
     for idx, response in enumerate(predictor.handle_stream_request(
         request=dict(
             type="propagate_in_video",
-            session_id=session_id,
+            session_id=session_id
         )
     )):
         to_coco_format(response, coco_list, frame_shift=frame_shift)
@@ -85,8 +85,8 @@ def main(video_path, output_file, text_prompt, frame_shift=0, det_only=False):
             request=dict(
                 type="start_session",
                 resource_path=video_path,
-                offload_video_to_cpu=True,
-                offload_state_to_cpu=True,
+                # offload_state_to_cpu=True,
+                # offload_video_to_cpu=True
             )
         )
         session_id = response["session_id"]
@@ -95,7 +95,7 @@ def main(video_path, output_file, text_prompt, frame_shift=0, det_only=False):
                 type="add_prompt",
                 session_id=session_id,
                 frame_index=0,
-                text=text_prompt,
+                text=text_prompt
             )
         )
         # response = video_predictor.handle_request(request=dict(type="add_prompt",session_id=session_id,frame_index=0,text=text_prompt,output_prob_thresh=0,clear_old_points=False,clear_old_boxes=False))
