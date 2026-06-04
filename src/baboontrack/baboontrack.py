@@ -28,6 +28,15 @@ from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_t
 # Help variables
 from .help import *
 
+def load_as_detection_dict(var, image_size=None, log=None):
+    # Load detection results if not already loaded
+    if isinstance(var, str):
+        print_and_log('Loading detection_dict from %s' % (var), log=log)
+        var = load_json_file(var)
+    if isinstance(var, list):
+        var = {'detections': coco_to_perso_format(var, image_size=image_size)}
+    return var
+
 def get_last_tracks(all_tracks):
     '''
     Get the last tracks from the tracking buffer.
@@ -209,8 +218,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
             'Detection and Tracking Progress with currently %d tracks.%s' % (
                 track_id,
                 '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx)) if idx else ''
-            ),
-            log=log
+            )
         )
         
         ## Detection (Could be improved by running the detection on a batch of frames instead of one by one)
@@ -237,7 +245,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         
     return output_results
 
-def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score=0.5, tracker_type=None, log=None):
+def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score=0.5, tracker_type=None, image_size=None, log=None):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -249,6 +257,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         tracking_size: int, the size of the tracking buffer in number of frames (default 30)
         score: float, the minimum detection score (default 0.5)
         tracker_type: str, the type of tracker to use (default None)
+        image_size: tuple, the size of the image (width, height)
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -261,9 +270,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         return output_file
     
     ## Check if detection_dict is filepath or dict
-    if isinstance(detection_dict, str):
-        print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
-        detection_dict = load_json_file(detection_dict)
+    detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
 
     start_time = time.time()
     if tracker_type == "bytetrack":
@@ -299,8 +306,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
             'Tracking Progress with currently %d tracks.%s' % (
                 n_tracks,
                 '(%ds left)' % (elapsed_time/idx*(len(my_video)-idx)) if idx else ''
-            ),
-            log=log
+            )
         )
 
         ## Set image size once from the first frame
@@ -325,7 +331,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 _current_tracks = tracker.update(bboxes, scores)
             elif tracker_type == "botsort":
                 # Expecting bboxes in (x1, y1, x2, y2) format pixel coordinates, scores and classid (same classid for all detections here)
-                bboxes_scores = np.hstack((bboxes, scores[:, np.newaxis], np.ones((len(scores), 1))))
+                bboxes_scores = np.hstack((bboxes, scores[:, np.newaxis], np.ones((len(scores), 1)))) if len(scores) > 0 else np.empty((0, 6))
                 _current_tracks = tracker.update(bboxes_scores, frame)
             # Convert back to (x, y, w, h) format and normalized coordinates
             current_tracks = []
@@ -349,7 +355,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_file, log=None):
+def classify(detection_dict, my_video, output_file, image_size=None, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -357,6 +363,7 @@ def classify(detection_dict, my_video, output_file, log=None):
         detection_dict: dict, the detection and tracking results
         my_video: VideoFrameIterator, the video to process
         output_file: str, the path to save the output file
+        image_size: tuple, the size of the image (width, height)
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -372,9 +379,7 @@ def classify(detection_dict, my_video, output_file, log=None):
     n_tracks = 0
     
     ## Check if detection_dict is filepath or dict
-    if isinstance(detection_dict, str):
-        print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
-        detection_dict = load_json_file(detection_dict)
+    detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
     
     classification_dict = copy.deepcopy(detection_dict)
     # TODO: implement the classification of the tracks using a pre-trained classifier and a dictionary with extracted features from the tracks.
@@ -459,11 +464,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     if args.eval_detection:
         # Load detection results if not already loaded
-        if isinstance(detection_dict, str):
-            print_and_log('Loading detection_dict from %s' % (detection_dict), log=log)
-            detection_dict = load_json_file(detection_dict)
-        if isinstance(detection_dict, list):
-            detection_dict = {'detections': coco_to_perso_format(detection_dict, image_size=image_size)}
+        detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
         # Convert MOT GT to COCO format for evaluation
         labels_detection = ['Baboon']
         gt_dict_coco_det = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, cat_id_override=1, categories=labels_detection)
@@ -500,16 +501,13 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         tracking_size=args.tracking_size,
         score=args.det_score,
         tracker_type=args.tracker_type,
+        image_size=image_size,
         log=log
     )
 
     if args.eval_tracking:
         # Load tracking results if not already loaded
-        if isinstance(tracking_dict, str):
-            print_and_log('Loading tracking_dict from %s' % (tracking_dict), log=log)
-            tracking_dict = load_json_file(tracking_dict)
-        if isinstance(tracking_dict, list):
-            tracking_dict = {'detections': coco_to_perso_format(tracking_dict, image_size=image_size)}
+        tracking_dict = load_as_detection_dict(tracking_dict, image_size=image_size, log=log)
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
@@ -547,6 +545,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         tracking_dict,
         my_video,
         os.path.join(args.output, 'class_%s.json' % (det_tracker_str)),
+        image_size=image_size,
         log=log
     )
     if check_stop(log=log): return 0
@@ -606,7 +605,6 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         if check_stop(log=log): return 0
 
     print_and_log("Processing of %s finished in %ds." % (args.input_video, time.time()-start_time), log=log)
-    close_log(log)
 
 def main_loop(args, log=None):
     '''
@@ -817,8 +815,10 @@ def run(**kwargs):
             main_funct(args, log=log)
         else:
             input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            main_output = copy.deepcopy(args.output)
             for input_path in input_list:
                 args.input_video = input_path
+                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
                 main_funct(args, log=log)
         close_log(log)
     
