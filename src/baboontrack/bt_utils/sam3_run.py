@@ -75,7 +75,7 @@ def propagate_in_video(predictor, session_id, coco_list, frame_shift=0, cache_si
             gc.collect()
             torch.cuda.empty_cache()
 
-def main(video_path, output_file, text_prompt, frame_shift=0):
+def main(video_path, output_file, text_prompt, frame_shift=0, det_only=False):
     coco_list = []
     with torch.inference_mode():
         # Initialization
@@ -107,14 +107,30 @@ def main(video_path, output_file, text_prompt, frame_shift=0):
             torch.cuda.memory_reserved(gpu_id) / 1024**3,
             gpu_tot
         ))
-        # Propagate the prompt in the video
-        propagate_in_video(
-            video_predictor,
-            session_id,
-            coco_list,
-            frame_shift=frame_shift
-        )
-        print('Finished propagating in video. GPU memory (used/res/total): %.2f/%.2f/%.2f Gb' % (
+        if det_only:
+            # Save first response
+            to_coco_format(response, coco_list, frame_shift=frame_shift)
+            # Perform add prompt and save response for each frame in the video
+            for idx in range(1, video_predictor._all_inference_states[session_id]["state"]["video_length"]):
+                response = video_predictor.handle_request(
+                    request=dict(
+                        type="add_prompt",
+                        session_id=session_id,
+                        frame_index=idx,
+                        text=text_prompt,
+                    )
+                )
+                to_coco_format(response, coco_list, frame_shift=frame_shift)
+        else:
+            # Propagate the prompt in the video
+            propagate_in_video(
+                video_predictor,
+                session_id,
+                coco_list,
+                frame_shift=frame_shift
+            )
+        print('Finished %s in video. GPU memory (used/res/total): %.2f/%.2f/%.2f Gb' % (
+            'propagating' if not det_only else 'detecting',
             torch.cuda.memory_allocated(gpu_id) / 1024**3,
             torch.cuda.memory_reserved(gpu_id) / 1024**3,
             gpu_tot
@@ -156,10 +172,15 @@ def get_args():
         default=0,
         help='Shift for saving the image_idx.'
     )
+    parser.add_argument(
+        '-d', '--det_only',
+        action='store_true',
+        help='Perform only detection on every frame without propagation.'
+    )
     args = parser.parse_args()
     args.parser = parser
     return args
 
 if __name__ == "__main__":
     args = get_args()
-    main(args.video_path, args.output_file, args.text_prompt, frame_shift=args.frame_shift)
+    main(args.video_path, args.output_file, args.text_prompt, frame_shift=args.frame_shift, det_only=args.det_only)

@@ -574,13 +574,13 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
-    # # Save MOT format
-    # save_mot_format(
-    #     classification_dict['detections'],
-    #     os.path.join(args.output, 'mot'),
-    #     image_size=image_size,
-    #     labels=classes
-    # )
+    # Save MOT format
+    save_mot_format(
+        classification_dict['detections'],
+        os.path.join(args.output, 'mot'),
+        image_size=image_size,
+        labels=classes
+    )
 
     # # Save COCO format
     # save_coco_format(
