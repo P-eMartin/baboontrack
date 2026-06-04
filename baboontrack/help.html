@@ -163,14 +163,15 @@
 </span><span id="L-62"><a href="#L-62"><span class="linenos">62</span></a><span class="s1">- &quot;MDv5b&quot;: Same but different training hyperparameters.</span>
 </span><span id="L-63"><a href="#L-63"><span class="linenos">63</span></a><span class="s1">- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.</span>
 </span><span id="L-64"><a href="#L-64"><span class="linenos">64</span></a><span class="s1">- &quot;sam3&quot;: Use SAM 3 for detection and tracking.</span>
-</span><span id="L-65"><a href="#L-65"><span class="linenos">65</span></a><span class="s1">&#39;&#39;&#39;</span>
-</span><span id="L-66"><a href="#L-66"><span class="linenos">66</span></a>
-</span><span id="L-67"><a href="#L-67"><span class="linenos">67</span></a><span class="n">helptext_text_prompt</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Text prompt to use for SAM 3 tracking. Default: &quot;an animal&quot;.</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos">68</span></a><span class="s1">This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.</span>
-</span><span id="L-69"><a href="#L-69"><span class="linenos">69</span></a><span class="s1">&#39;&#39;&#39;</span>
-</span><span id="L-70"><a href="#L-70"><span class="linenos">70</span></a>
-</span><span id="L-71"><a href="#L-71"><span class="linenos">71</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
-</span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-65"><a href="#L-65"><span class="linenos">65</span></a><span class="s1">- &quot;sam3_det&quot;: Use SAM 3 for detection only.</span>
+</span><span id="L-66"><a href="#L-66"><span class="linenos">66</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-67"><a href="#L-67"><span class="linenos">67</span></a>
+</span><span id="L-68"><a href="#L-68"><span class="linenos">68</span></a><span class="n">helptext_text_prompt</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Text prompt to use for SAM 3 tracking. Default: &quot;an animal&quot;.</span>
+</span><span id="L-69"><a href="#L-69"><span class="linenos">69</span></a><span class="s1">This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.</span>
+</span><span id="L-70"><a href="#L-70"><span class="linenos">70</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-71"><a href="#L-71"><span class="linenos">71</span></a>
+</span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
+</span><span id="L-73"><a href="#L-73"><span class="linenos">73</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span></pre></div>
 
 
@@ -344,7 +345,7 @@
                     <div class="attr variable">
             <span class="name">helptext_det_model</span>        =
 <input id="helptext_det_model-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="helptext_det_model-view-value"></label><span class="default_value">&#39;Model to use for detection. Default: &#34;md_v5b.0.0.pt&#34;.\nOptions:\n- &#34;MDv5a&#34;: MegaDetector model trained on a dataset of animals in the wild.\n- &#34;MDv5b&#34;: Same but different training hyperparameters.\n- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.\n- &#34;sam3&#34;: Use SAM 3 for detection and tracking.\n&#39;</span>
+            <label class="view-value-button pdoc-button" for="helptext_det_model-view-value"></label><span class="default_value">&#39;Model to use for detection. Default: &#34;md_v5b.0.0.pt&#34;.\nOptions:\n- &#34;MDv5a&#34;: MegaDetector model trained on a dataset of animals in the wild.\n- &#34;MDv5b&#34;: Same but different training hyperparameters.\n- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.\n- &#34;sam3&#34;: Use SAM 3 for detection and tracking.\n- &#34;sam3_det&#34;: Use SAM 3 for detection only.\n&#39;</span>
 
         
     </div>
