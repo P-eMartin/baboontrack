@@ -72,8 +72,56 @@ def compute_mask_iou(det1, det2):
     rle2 = det2["segmentation"]
     return float(mask_utils.iou([rle1], [rle2], [0])[0][0])
 
+def merge_only_dets(all_detections, iou_threshold):
+    # Group detections by frame
+    detections_by_frame = defaultdict(list)
+    for det in all_detections:
+        detections_by_frame[det["image_id"]].append(det)
 
-def merge_detections(coco_files, iou_threshold=0.8):
+    merged_detections = []
+
+    for frame_id, frame_dets in detections_by_frame.items():
+
+        # Build graph of duplicate detections
+        graph = nx.Graph()
+        for idx in range(len(frame_dets)):
+            graph.add_node(idx)
+
+        for i in range(len(frame_dets)):
+            for j in range(i + 1, len(frame_dets)):
+
+                det_a = frame_dets[i]
+                det_b = frame_dets[j]
+
+                # Only compare detections coming from different chunks
+                if det_a["_chunk_idx"] == det_b["_chunk_idx"]:
+                    continue
+
+                iou = compute_mask_iou(det_a, det_b)
+
+                if iou >= iou_threshold:
+                    graph.add_edge(i, j)
+
+        # Each connected component corresponds to duplicated detections
+        for component in nx.connected_components(graph):
+            component_dets = [frame_dets[idx] for idx in component]
+
+            # Keep highest-scoring detection
+            best_det = max(
+                component_dets,
+                key=lambda d: float(d.get("score", 0.0))
+            )
+
+            merged_detections.append(best_det)
+
+    # Clean temporary fields
+    for det in merged_detections:
+        det.pop("_chunk_idx", None)
+
+    merged_detections.sort(key=lambda d: d["image_id"])
+    return merged_detections
+
+def merge_detections(coco_files, iou_threshold=0.8, det_only=False):
     '''
     Merge detections coming from overlapping chunks.
         1) Load all detections from every chunk.
@@ -88,6 +136,7 @@ def merge_detections(coco_files, iou_threshold=0.8):
     Args:
         coco_files: list, paths to COCO format files
         iou_threshold: float, the IoU threshold to use for merging tracks
+        det_only: bool, whether to only merge detection-level overlaps which means no track_id.
 
     Returns:
         merged_detections: list of dicts, the merged detections with global track IDs
@@ -100,6 +149,10 @@ def merge_detections(coco_files, iou_threshold=0.8):
             det = copy.deepcopy(det)
             det["_chunk_idx"] = chunk_idx
             all_detections.append(det)
+
+    # Short circuit if only merging detections without track IDs
+    if det_only:
+        return merge_only_dets(all_detections, iou_threshold)
 
     # STEP 2 - BUILD TRACK STRUCTURE
     tracks = defaultdict(list)
@@ -241,7 +294,7 @@ def process_video_with_sam(my_video, output_file, text_prompt="an animal", chunk
         progress_bar(len(chunk_dirs), len(chunk_dirs), title='Finished processing all chunks in %.2f seconds.' % (time.time() - start_time), completed=True, log=log)
 
     # Merge coco files
-    merged_detections = merge_detections(coco_files, iou_threshold=0.8)
+    merged_detections = merge_detections(coco_files, iou_threshold=0.8, det_only=det_only)
     save_json_file(merged_detections, output_file)
 
     if clean_up:

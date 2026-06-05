@@ -24,6 +24,7 @@ from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format, coco_to_perso_format
+from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
 
 # Help variables
 from .help import *
@@ -99,17 +100,23 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     matches = []
     for idx, detection in enumerate(detections):
         # Remove detections with low score
-        if detection['conf'] < score:
+        if detection.get('score', detection.get('conf', 0)) < score:
             print_and_log('Detection with low score found (frame %d): %f' % (idx, detection['conf']), log=log)
             to_delete.append(idx)
             continue
         # Match track ID based on IoU with last tracks
-        best_iou = 0
+        best_iou = iou_threshold
         for track in last_tracks:
-            iou = compute_iou(detection['bbox'], track['bbox'], image_size)
+            if 'segmentation' in track and 'segmentation' in detection:
+                iou = compute_mask_iou(track, detection)
+            else:
+                iou = compute_iou(detection['bbox'], track['bbox'], image_size)
             if iou > best_iou:
                 matches.append({'det_idx':idx, 'track_id': track['track_id'], 'iou': iou})
                 best_iou = iou
+        # Remove existing track_id if exists to avoid confusion with the new assigned track_id
+        if 'track_id' in detection:
+            del detection['track_id']
 
     # Sort by best IoU first
     matches = sorted(matches, key=lambda x: x['iou'], reverse=True)
@@ -179,7 +186,6 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         dict, the detection and tracking results
     '''
     # Initialization
-    
     ## Check if the output file already exists
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping detection and tracking.' % (output_file), log=log)
@@ -194,7 +200,6 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
 
     ## Megadetector
     if "sam3" in det_model:
-        from .bt_utils.sam3_utils import process_video_with_sam
         return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=200, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
     
     model = run_detector.load_detector(
@@ -289,6 +294,11 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         from .bt_utils.bot_sort.bot_sort import BoTSORT
         feat_model = ReIDModel(device=device)
         tracker = BoTSORT(encoder=feat_model)
+    elif tracker_type == "IoU":
+        print_and_log('Tracking with IoU', log=log)
+        track_id = 0
+        tracking_buffer = []
+        last_tracks = []
     else:
         # None - return the detection results without tracking
         print_and_log('No tracking, just returning detection results', log=log)
@@ -344,10 +354,22 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 n_tracks = max(n_tracks, track.track_id)
                 current_tracks.append(tmp)
             all_tracks.append(current_tracks)
-        else:
+        elif tracker_type == "deepsort":
             current_tracks, max_track_id = update_tracker(tracker, frame, feat_model, det_result)
             n_tracks = max(n_tracks, max_track_id)
             all_tracks.append(current_tracks)
+        elif tracker_type == "IoU":
+            ## Assign track_ids
+            track_id = process_detections(det_result, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=0)
+            n_tracks = track_id - 1
+            ## Update Tracking
+            if len(tracking_buffer) > tracking_size:
+                tracking_buffer.pop(0)
+            tracking_buffer.append(det_result)
+            last_tracks = get_last_tracks(tracking_buffer)
+
+            ## Save and display results
+            all_tracks.append(det_result)
     progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, n_tracks), log=log, completed=True)
 
     # Saving
@@ -493,7 +515,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     # Tracking
     if check_stop(log=log): return 0
-    det_tracker_str = '%s_%s' % (det_model_str, args.tracker_type if args.tracker_type else 'default')
+    det_tracker_str = '%s_%s' % (det_model_str, args.tracker_type)
     tracking_dict = track(
         my_video,
         detection_dict,
@@ -501,7 +523,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         device=args.device,
         tracking_size=args.tracking_size,
         score=args.det_score,
-        tracker_type=args.tracker_type,
+        tracker_type=None if args.tracker_type == 'IoU' and 'sam3' not in args.det_model else args.tracker_type,
         image_size=image_size,
         log=log
     )
@@ -617,12 +639,14 @@ def main_loop(args, log=None):
         log: logger, the logger to print the information
     '''
     prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
-    tracker_types = [None, 'bytetrack', 'deepsort', 'botsort']
+    tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
     det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
     gt_files_name = ['frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
     for det_model in det_models:
         args.det_model = det_model
         for tracker_type in tracker_types:
+            if 'sam3' in tracker_type and 'sam3' not in det_model:
+                continue
             args.tracker_type = tracker_type
             for prompt in prompts if 'sam3' in det_model else ['']:
                 args.text_prompt = prompt
@@ -666,7 +690,11 @@ def infer_args_name(args):
         )
 
     # Check tracker type
-    assert args.tracker_type in [None, 'bytetrack', 'deepsort', 'botsort', 'sam3'], 'Tracker type must be one of None, bytetrack, deepsort or botsort.'
+    assert args.tracker_type in ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3'], 'Tracker type must be one of IoU, bytetrack, deepsort or botsort.'
+
+    # Check if tracker type is compatible with detection model
+    if 'sam3' in args.tracker_type:
+        assert 'sam3' in args.det_model, 'Tracker type %s is only compatible with sam3 detection model.' % (args.tracker_type)
     return 1
 
 def get_args():
@@ -731,7 +759,7 @@ def get_args():
     parser.add_argument(
         '-T', '--tracker_type',
         type=str,
-        default=None,
+        default='IoU',
         help=helptext_tracker_type
     )
     parser.add_argument(
