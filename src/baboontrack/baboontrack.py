@@ -153,12 +153,12 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             detection['id'] = default_class_id
             detection['id_score'] = 0
         
-        detection['det'] = int(detection['category'])-1
-        detection['score'] = detection['conf']
+        detection['det'] = int(detection.get('category', 1)-1)
+        detection['score'] = detection.get('score', detection.get('conf', 0))
         detection['visibility'] = get_value_with_precision(1-max([match['iou'] for match in matches if match['det_idx'] == idx and match['track_id'] != detection['track_id']], default=0))
         # Remove the normalized keys
-        del detection['category']
-        del detection['conf']
+        if 'category' in detection: del detection['category']
+        if 'conf' in detection: del detection['conf']
 
     # Remove detections with low score
     for idx in reversed(to_delete):
@@ -645,7 +645,7 @@ def main_loop(args, log=None):
     for det_model in det_models:
         args.det_model = det_model
         for tracker_type in tracker_types:
-            if 'sam3' in tracker_type and 'sam3' not in det_model:
+            if tracker_type == 'sam3' and det_model != 'sam3':
                 continue
             args.tracker_type = tracker_type
             for prompt in prompts if 'sam3' in det_model else ['']:

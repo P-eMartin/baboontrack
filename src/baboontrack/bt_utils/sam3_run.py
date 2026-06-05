@@ -7,7 +7,7 @@ import sys
 import pdb
 from pycocotools import mask as mask_utils
 try:
-    from json_utils import save_json_file
+    from json_utils import save_json_file, save_dict_to_txt
     # sys.path.append(os.path.dirname(__file__))  # Add sam3 directory to the system path to import sam3
     from sam3.model_builder import build_sam3_video_predictor # type: ignore
 except ImportError:
@@ -111,7 +111,10 @@ def main(video_path, output_file, text_prompt, frame_shift=0, det_only=False):
             # Save first response
             to_coco_format(response, coco_list, frame_shift=frame_shift)
             # Perform add prompt and save response for each frame in the video
-            for idx in range(1, video_predictor._all_inference_states[session_id]["state"]["video_length"]):
+            num_frames = video_predictor._all_inference_states[session_id]["state"].get("video_length", video_predictor._all_inference_states[session_id]["state"].get("num_frames", 0))
+            for idx in range(1, num_frames):
+                # Progress bar with %
+                print(f"Processing frame {idx}/{num_frames-1} ({(idx/(num_frames-1))*100:.1f}%)", end='\r')
                 response = video_predictor.handle_request(
                     request=dict(
                         type="add_prompt",

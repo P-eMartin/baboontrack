@@ -73,7 +73,7 @@ def check_svg_support():
         # ffmpeg is not installed
         return False
 
-def run_command(command, log=None):
+def run_command(command, log=None, columns=80):
     """
     Run a command in the terminal and stream its output in real time.
 
@@ -91,12 +91,15 @@ def run_command(command, log=None):
 
     try:
         print_and_log(f"Running command: {' '.join(command)}", log=log)
+        env = os.environ.copy()
+        env["COLUMNS"] = str(columns)
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=env
         )
         for line in iter(process.stdout.readline, ''):
             line = line.rstrip()
