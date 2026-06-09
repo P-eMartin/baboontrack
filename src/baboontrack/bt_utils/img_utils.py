@@ -130,6 +130,8 @@ class VideoFrameIterator:
         # Reset video
         self.reset_video()
         start_time = time.time()
+        brg_save = self.bgr
+        self.bgr = True  # Ensure frames are saved in BGR format for compatibility with OpenCV
 
         for idx, frame in enumerate(self):
             if idx % 50 == 0:
@@ -139,6 +141,8 @@ class VideoFrameIterator:
                     " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                 ), log=log)
             cv2.imwrite(os.path.join(output_folder, f"frame_{idx:04d}.png"), frame)
+        progress_bar(self.length, self.length, 'Extracting frames from video %s... Done in %.2f seconds.' % (os.path.basename(self.path), time.time() - start_time), completed=True, log=log)
+        self.bgr = brg_save  # Restore original BGR setting
 
     def extract_all_frames_in_chunks(self, output_folder, chunk_size=1000, overlap=0, log=None):
         '''
@@ -157,11 +161,13 @@ class VideoFrameIterator:
         start_time = time.time()
         chunk_idx = 0
         end = chunk_size
+        brg_save = self.bgr
+        self.bgr = True  # Ensure frames are saved in BGR format for compatibility with OpenCV
 
         for idx, frame in enumerate(self):
             if idx % 50 == 0:
                 elapsed_time = time.time() - start_time
-                progress_bar(idx, self.length, 'Extracting frames from video %s%s' % (
+                progress_bar(idx, self.length, 'Extracting frames in chunks from video %s%s' % (
                     os.path.basename(self.path),
                     " (%ds left)" % (elapsed_time/idx*(self.length-idx-1)) if idx > 0 else ""
                 ), log=log)
@@ -183,6 +189,8 @@ class VideoFrameIterator:
                     os.path.join(overlap_folder, f"{idx:05d}.png"),
                     frame
                 )
+        progress_bar(self.length, self.length, 'Extracting frames in chunks from video %s... Done in %.2f seconds.' % (os.path.basename(self.path), time.time() - start_time), completed=True, log=log)
+        self.bgr = brg_save  # Restore original BGR setting
 
     def get_image_size(self):
         '''
@@ -359,6 +367,8 @@ class VideoFrameIterator:
 
         # Reset video
         self.reset_video()
+        bgr_save = self.bgr
+        self.bgr = True  # Ensure frames are saved in BGR format for compatibility with OpenCV
 
         # Color dictionaries
         ## Detection classes based on viridis colormap
@@ -461,6 +471,7 @@ class VideoFrameIterator:
 
         # Reset video
         self.reset_video()
+        self.bgr = bgr_save  # Restore original BGR setting
         return 1
 
 def apply_mask(frame, mask, color, alpha=0.5):

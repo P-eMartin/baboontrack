@@ -198,10 +198,11 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     last_tracks = []
     start_time = time.time()
 
-    ## Megadetector
+    ## SAM3
     if "sam3" in det_model:
         return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=200, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
     
+    ## Megadetector
     model = run_detector.load_detector(
         det_model,
         detector_options={'device':device}
@@ -226,7 +227,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
             )
         )
         
-        ## Detection (Could be improved by running the detection on a batch of frames instead of one by one)
+        ## Detection on RGB ordered image (Could be improved by running the detection on a batch of frames instead of one by one) 
         det_result = model.generate_detections_one_image(frame, detection_threshold=score)['detections'] # image_id=idx
 
         ## Assign track_ids
