@@ -1,11 +1,11 @@
 from argparse import ArgumentParser
-import numpy as np
+import numpy as np # type: ignore
 import os
-import torch
+import torch # type: ignore
 import gc
 import sys
 import pdb
-from pycocotools import mask as mask_utils
+from pycocotools import mask as mask_utils # type: ignore
 try:
     from json_utils import save_json_file, save_dict_to_txt
     # sys.path.append(os.path.dirname(__file__))  # Add sam3 directory to the system path to import sam3
