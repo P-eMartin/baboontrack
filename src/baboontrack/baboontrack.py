@@ -1,3 +1,4 @@
+from collections import defaultdict
 import sys
 import os
 import cv2
@@ -23,8 +24,9 @@ from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
-from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format, coco_to_perso_format
+from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, mot_to_coco_format, coco_to_perso_format, perso_format_to_trackid_format
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
+from .bt_utils.classifier import load_model_and_transform, extract_feature, build_feature_dict, build_image_paths_dict, get_class_scores, resolve_class_assignments
 
 # Help variables
 from .help import *
@@ -378,7 +380,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_file, image_size=None, log=None):
+def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -386,6 +388,8 @@ def classify(detection_dict, my_video, output_file, image_size=None, log=None):
         detection_dict: dict, the detection and tracking results
         my_video: VideoFrameIterator, the video to process
         output_file: str, the path to save the output file
+        class_database: str, the path to the classification dictionary
+        class_threshold: float, the threshold for class assignment
         image_size: tuple, the size of the image (width, height)
         log: logger, the logger to print the information (default None)
 
@@ -394,34 +398,69 @@ def classify(detection_dict, my_video, output_file, image_size=None, log=None):
     '''
     # Initialization
     ## Check if the output file already exists
-    if os.path.exists(output_file):
-        print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
-        return load_json_file(output_file)
+    # if os.path.exists(output_file):
+    #     print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
+    #     return load_json_file(output_file)
     ## Classification names
-    classes = ['NoID']
+    if class_database:
+        classes = sorted(os.listdir(class_database))
+        img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
+    else:
+        classes = []
+        img_path_dict = {}
+    classes.append('NoID')
     n_tracks = 0
-    
+    model, transform = load_model_and_transform()
+    feature_database = build_feature_dict(model, transform, img_path_dict)
+
     ## Check if detection_dict is filepath or dict
     detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
-    
-    classification_dict = copy.deepcopy(detection_dict)
-    # TODO: implement the classification of the tracks using a pre-trained classifier and a dictionary with extracted features from the tracks.
-    for dets_per_frame in classification_dict['detections']:
-        # Just assign track_id as the class for now
+    class_dict = copy.deepcopy(detection_dict)
+
+    ## Step 1: Sort dict per track_id
+    track_dict = perso_format_to_trackid_format(class_dict)
+
+    ## Step 2: For each track, extract the features per image and get the class scores
+    track_class_dict = defaultdict(list)
+    for track_id, track_dets in track_dict.items():
+        features = []
+        idxs = []
+        for det in track_dets:
+            idxs.append(det['frame'])
+            frame_idx = det['frame']
+            img = my_video.get_frame_idx(frame_idx)
+            x, y, w, h = det['bbox']
+            img_cropped = img[int(y*img.shape[0]):int((y+h)*img.shape[0]), int(x*img.shape[1]):int((x+w)*img.shape[1])]
+            feature = extract_feature(model, transform, img_cropped)
+            features.append(feature)
+        track_class_dict[track_id] = {
+            'scores': get_class_scores(features, feature_database),
+            'idxs': idxs
+        }
+
+    ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
+    final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
+
+    ## Step 4: Save the results in in class_dict
+    class_to_idx = {cls_name: idx for idx, cls_name in enumerate(classes)}
+
+    for dets_per_frame in class_dict['detections']:
         for det in dets_per_frame:
             track_id = det['track_id']
-            det['det'] = track_id-1
+            assigned_class, assigned_score = final_assignments.get(track_id,("NoID", 0.0))
             n_tracks = max(n_tracks, track_id)
             det['score'] = det.get('det_score', det.get('score', None))
-            det['id'] = det.get('id', 0)
-            det['id_score'] = None
+            # Keep detector class untouched if it exists
+            det['det'] = det.get('det', 0)
+            det['id'] = class_to_idx[assigned_class]
+            det['id_score'] = assigned_score
 
     # Saving
-    classification_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
-    classification_dict['classification_classes'] = classes
-    save_json_file(classification_dict, output_file)
+    class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
+    class_dict['classification_classes'] = classes
+    save_json_file(class_dict, output_file)
 
-    return classification_dict
+    return class_dict
 
 def false_check(log=None):
     '''
@@ -471,7 +510,6 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_mot_cat = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
-    ## TODO: Detection - tracking with SAM 3
     if check_stop(log=log): return 0
     det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if 'sam3' in args.det_model else "")
     detection_dict = detect(
@@ -561,17 +599,18 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             },
         )
         print_and_log('Tracking evaluation results:\n%s' % (str(eval_results)), log=log)
-    classes = ['NoID']
-
+    
     # Classification
     if check_stop(log=log): return 0
-    classification_dict = classify(
+    class_dict = classify(
         tracking_dict,
         my_video,
         os.path.join(args.output, 'class_%s.json' % (det_tracker_str)),
+        class_database=args.class_database,
         image_size=image_size,
         log=log
     )
+    classes = ['NoID']
     if check_stop(log=log): return 0
 
     if args.eval_classification:
@@ -579,7 +618,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=classes)
         gt_class_coco_file = save_coco_format(gt_dict_coco_class['detections'], os.path.join(args.output, 'gt_class_coco_format'), labels=classes)
         class_coco_file = save_coco_format(
-            classification_dict['detections'],
+            class_dict['detections'],
             os.path.join(args.output, 'class_coco_format'),
             image_size=image_size,
             labels=classes,
@@ -599,7 +638,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     # Save MOT format
     save_mot_format(
-        classification_dict['detections'],
+        class_dict['detections'],
         os.path.join(args.output, 'mot'),
         image_size=image_size,
         labels=classes
@@ -607,7 +646,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     # # Save COCO format
     # save_coco_format(
-    #     classification_dict['detections'],
+    #     class_dict['detections'],
     #     os.path.join(args.output, 'coco'),
     #     image_size=image_size,
     #     labels=classes
@@ -617,12 +656,12 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     if args.video_demo:
         my_video.reset_video()
         my_video.plot_annotations(
-            classification_dict['detections'],
+            class_dict['detections'],
             os.path.join(args.output, 'video_demo_%s.mp4' % (det_tracker_str)),
             max_res=args.max_res,
             display_fct=args.display_fct,
-            detection_classes=classification_dict['detection_classes'],
-            classification_classes=classification_dict['classification_classes'],
+            detection_classes=class_dict['detection_classes'],
+            classification_classes=class_dict['classification_classes'],
             del_imgs=args.del_imgs,
             log=log
         )
@@ -768,6 +807,12 @@ def get_args():
         type=str,
         default="an animal",
         help=helptext_text_prompt
+    )
+    parser.add_argument(
+        '-C', '--class_database',
+        default=os.path.join('/shared', 'group_dict'),
+        type=str,
+        help=helptext_class_database
     )
     parser.add_argument(
         '-e', '--eval_detection',

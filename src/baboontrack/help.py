@@ -71,3 +71,8 @@ This prompt will be used to guide the SAM 3 tracker in identifying and tracking 
 
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
 '''
+
+helptext_class_database = '''Path to the classification dictionary. Default: "/shared/group_dict".
+The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.
+The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.
+'''

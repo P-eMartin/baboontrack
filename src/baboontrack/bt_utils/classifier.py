@@ -1,7 +1,10 @@
+from collections import defaultdict
+
 import torch
 import torchvision.transforms as T
 from PIL import Image
 import torch.nn.functional as F
+import os
 
 def cosine_similarity(a, b):
     return F.cosine_similarity(
@@ -9,7 +12,7 @@ def cosine_similarity(a, b):
         b.unsqueeze(0)
     ).item()
 
-def load_model_and_transform(model_path, device='cpu'):
+def load_model_and_transform(model_path='', device='cpu'):
     # Load the model
     # model = torch.load(model_path, map_location=device)
     model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
@@ -30,9 +33,23 @@ def load_model_and_transform(model_path, device='cpu'):
     return model, transform
 
 
-def extract_feature(model, transform, image_path):
+def extract_feature(model, transform, img):
+    '''
+    Extract the feature of an RGB image using the model and the transform.
+    
+    Args:
+        model: torch.nn.Module, the model to use for feature extraction
+        transform: torchvision.transforms, the transform to apply to the image
+        img: str or numpy.ndarray, the path to the image or the image itself
 
-    image = Image.open(image_path).convert("RGB")
+    Returns:
+        torch.Tensor, the extracted feature
+    '''
+
+    if isinstance(img, str):
+        image = Image.open(img).convert("RGB")
+    else:
+        image = img
 
     x = transform(image).unsqueeze(0)
 
@@ -46,6 +63,23 @@ def extract_feature(model, transform, image_path):
 
     return feat
 
+def build_image_paths_dict(class_dict_path):
+    '''
+    Build a dictionary of image paths for each class.
+    
+    Args:
+        class_dict_path: str, the path to the classification dictionary, which should be a folder containing subfolders for each class, and each subfolder should contain the images corresponding to that class.
+
+    Returns:
+        image_paths: dict, a dictionary of image paths for each class.
+    '''
+    image_paths = {}
+    for class_name in os.listdir(class_dict_path):
+        class_path = os.path.join(class_dict_path, class_name)
+        if os.path.isdir(class_path):
+            image_paths[class_name] = [os.path.join(class_path, f) for f in os.listdir(class_path) if f.lower().endswith(('.jpg', '.png'))]
+    return image_paths
+
 def build_feature_dict(model, transform, image_paths):
     '''
     Build a dictionary of features for a list of image paths.
@@ -58,8 +92,8 @@ def build_feature_dict(model, transform, image_paths):
     Returns:
         feature_dict: dict, a dictionary of features for each key'''
     feature_dict = {}
-    for image_path in image_paths:
-        feature_dict[image_path] = extract_feature(model, transform, image_path)
+    for class_id, paths in image_paths.items():
+        feature_dict[class_id] = [extract_feature(model, transform, path) for path in paths]
     return feature_dict
 
 def avg_features(track_features):
@@ -77,21 +111,128 @@ def avg_features(track_features):
     return avg_feature_dict
 
 
-def classify_track(track_embedding, database):
-    best_id = None
-    best_score = -1
+def get_class_scores(track_feats, database):
+    '''
+    Get the similarities between a track and a database of features for each class.
+    Returns a list of best score per class.
 
-    for identity, feats in database.items():
+    Args:
+        track_feats: list, a list of feature vectors for the track
+        database: dict, a dictionary of features for each class
 
-        for ref_feat in feats:
+    Returns:
+        scores: dict, a dictionary of best scores for each class
+    '''
+    scores = {}
 
-            score = cosine_similarity(
-                track_embedding,
-                ref_feat
-            )
+    for identity, ref_feats in database.items():
+        best_score = -1
+        for track_feat in track_feats:
+            for ref_feat in ref_feats:
+                score = cosine_similarity(
+                    track_feat,
+                    ref_feat
+                )
 
-            if score > best_score:
-                best_score = score
-                best_id = identity
+                if score > best_score:
+                    best_score = score
+        scores[identity] = best_score
 
-    return best_id, best_score
+    return scores
+
+def resolve_class_assignments(track_class_dict, class_threshold=0.5):
+    '''Resolve the class assignments for each track based on the scores, a threshold and overlapping tracks using while.
+    If no score is above the threshold, assign "NoID" class.
+
+    Args:
+        track_class_dict: dict, a dictionary containing the scores for each track and class, as well as the indexes of the detections corresponding to each track
+        class_threshold: float, the threshold to consider a score as valid for class assignment
+
+    Returns:
+        final_assignments: dict, a dictionary containing the final class assignment for each track
+    '''
+    # Sort scores descending for each track
+    ranked_classes = {}
+    for track_id, track_info in track_class_dict.items():
+        ranked_classes[track_id] = sorted(
+            track_info['scores'].items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+    # Precompute overlaps
+    overlaps = defaultdict(set)
+
+    track_ids = list(track_class_dict.keys())
+
+    for i, tid1 in enumerate(track_ids):
+        idxs1 = set(track_class_dict[tid1]['idxs'])
+
+        for tid2 in track_ids[i+1:]:
+            idxs2 = set(track_class_dict[tid2]['idxs'])
+
+            if idxs1.intersection(idxs2):
+                overlaps[tid1].add(tid2)
+                overlaps[tid2].add(tid1)
+
+    # Current choice rank for each track
+    choice_idx = {tid: 0 for tid in track_ids}
+
+    def get_assignment(track_id):
+        ranking = ranked_classes[track_id]
+
+        while choice_idx[track_id] < len(ranking):
+            cls, score = ranking[choice_idx[track_id]]
+
+            if score >= class_threshold:
+                return cls, score
+
+            break
+
+        return "NoID", 0.0
+
+    changed = True
+
+    while changed:
+        changed = False
+
+        current_assignment = {
+            tid: get_assignment(tid)
+            for tid in track_ids
+        }
+
+        for tid1 in track_ids:
+
+            cls1, score1 = current_assignment[tid1]
+
+            if cls1 == "NoID":
+                continue
+
+            for tid2 in overlaps[tid1]:
+
+                if tid1 >= tid2:
+                    continue
+
+                cls2, score2 = current_assignment[tid2]
+
+                if cls1 != cls2:
+                    continue
+
+                # Conflict found
+                if score1 >= score2:
+                    loser = tid2
+                else:
+                    loser = tid1
+
+                choice_idx[loser] += 1
+                changed = True
+                break
+
+            if changed:
+                break
+
+    final_assignments = {
+        tid: get_assignment(tid)
+        for tid in track_ids
+    }
+    return final_assignments

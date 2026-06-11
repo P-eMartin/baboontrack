@@ -58,6 +58,22 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
     perso_list.append(det_list)
     return perso_list
 
+def perso_format_to_trackid_format(perso_list):
+    '''
+    Convert a custom-format list of annotations to a track ID format.
+
+    Args:
+        perso_list: list of list of dict, the custom-format list of annotations
+
+    Returns:
+        dict, key: track ID, value: list of annotations
+    '''
+    trackid_dict = defaultdict(list)
+    for frame_dets in perso_list:
+        for det in frame_dets:
+            trackid_dict[det['track_id']].append(det)
+    return dict(trackid_dict)
+
 def save_coco_format(detection_dict, output_path, image_size=None, labels=None, boundaries=None, frame_id_offset=0):
     '''
     Save the detection and tracking results in COCO format.

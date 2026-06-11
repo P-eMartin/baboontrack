@@ -117,6 +117,28 @@ class VideoFrameIterator:
             if self.cap.isOpened():
                 self.cap.release()
 
+    def get_frame_idx(self, idx):
+        '''
+        Get the frame at the specified index using next method and reset. May take time if the index is far from the current index.
+        
+        Args:
+            idx: int, the index of the frame to get
+            
+        Returns:
+            numpy array: the frame at the specified index
+        '''
+        if idx < 0 or idx >= self.length:
+            print_and_log("Frame index %d out of range for video of length %d" % (idx, self.length), log=self.log)
+            return None
+        # Check current index and reset if needed
+        if idx < self.idx:
+            self.reset_video()
+        # Iterate until the desired index is reached
+        while self.idx < idx:
+            self.__next__()
+        return self.__next__()
+
+
     def extract_all_frames(self, output_folder, log=None):
         '''
         Extract all frames from the video and save them as images in the output folder.
