@@ -117,7 +117,7 @@ class VideoFrameIterator:
             if self.cap.isOpened():
                 self.cap.release()
 
-    def get_frame_idx(self, idx):
+    def get_frame_at_idx(self, idx):
         '''
         Get the frame at the specified index using next method and reset. May take time if the index is far from the current index.
         

@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
@@ -48,10 +48,17 @@ def extract_feature(model, transform, img):
 
     if isinstance(img, str):
         image = Image.open(img).convert("RGB")
+    elif isinstance(img, np.ndarray):
+        image = Image.fromarray(img)
+    elif isinstance(img, Image.Image):
+        image = img.convert("RGB")
     else:
-        image = img
+        raise ValueError("img should be a string (path to the image) or a numpy array (the image itself)")
 
     x = transform(image).unsqueeze(0)
+
+    # Device
+    x = x.to(next(model.parameters()).device)
 
     with torch.no_grad():
         feat = model(x)
@@ -154,23 +161,16 @@ def resolve_class_assignments(track_class_dict, class_threshold=0.5):
     # Sort scores descending for each track
     ranked_classes = {}
     for track_id, track_info in track_class_dict.items():
-        ranked_classes[track_id] = sorted(
-            track_info['scores'].items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        ranked_classes[track_id] = sorted(track_info['scores'].items(), key=lambda x: x[1], reverse=True)
 
     # Precompute overlaps
     overlaps = defaultdict(set)
-
     track_ids = list(track_class_dict.keys())
 
     for i, tid1 in enumerate(track_ids):
         idxs1 = set(track_class_dict[tid1]['idxs'])
-
         for tid2 in track_ids[i+1:]:
             idxs2 = set(track_class_dict[tid2]['idxs'])
-
             if idxs1.intersection(idxs2):
                 overlaps[tid1].add(tid2)
                 overlaps[tid2].add(tid1)
@@ -180,59 +180,39 @@ def resolve_class_assignments(track_class_dict, class_threshold=0.5):
 
     def get_assignment(track_id):
         ranking = ranked_classes[track_id]
-
         while choice_idx[track_id] < len(ranking):
             cls, score = ranking[choice_idx[track_id]]
-
             if score >= class_threshold:
                 return cls, score
-
             break
-
         return "NoID", 0.0
 
     changed = True
-
     while changed:
         changed = False
-
         current_assignment = {
             tid: get_assignment(tid)
             for tid in track_ids
         }
-
         for tid1 in track_ids:
-
             cls1, score1 = current_assignment[tid1]
-
             if cls1 == "NoID":
                 continue
-
             for tid2 in overlaps[tid1]:
-
                 if tid1 >= tid2:
                     continue
-
                 cls2, score2 = current_assignment[tid2]
-
                 if cls1 != cls2:
                     continue
-
                 # Conflict found
                 if score1 >= score2:
                     loser = tid2
                 else:
                     loser = tid1
-
                 choice_idx[loser] += 1
                 changed = True
                 break
-
             if changed:
                 break
-
-    final_assignments = {
-        tid: get_assignment(tid)
-        for tid in track_ids
-    }
+    final_assignments = {tid: get_assignment(tid) for tid in track_ids}
     return final_assignments

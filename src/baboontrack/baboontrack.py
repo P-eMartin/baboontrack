@@ -7,6 +7,7 @@ import time
 import datetime
 import copy
 import torch
+torch.cuda.init()
 from argparse import ArgumentParser
 import pdb
 from scipy.ndimage import gaussian_filter
@@ -380,7 +381,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file)
     return output_results
 
-def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, log=None):
+def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu', log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -391,12 +392,14 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         class_database: str, the path to the classification dictionary
         class_threshold: float, the threshold for class assignment
         image_size: tuple, the size of the image (width, height)
+        device: str, the device to use for feature extraction (default 'cpu')
         log: logger, the logger to print the information (default None)
 
     Returns:
         dict, the classification results
     '''
     # Initialization
+    start_time = time.time()
     ## Check if the output file already exists
     # if os.path.exists(output_file):
     #     print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
@@ -410,7 +413,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         img_path_dict = {}
     classes.append('NoID')
     n_tracks = 0
-    model, transform = load_model_and_transform()
+    model, transform = load_model_and_transform(device=device)
     feature_database = build_feature_dict(model, transform, img_path_dict)
 
     ## Check if detection_dict is filepath or dict
@@ -418,17 +421,23 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     class_dict = copy.deepcopy(detection_dict)
 
     ## Step 1: Sort dict per track_id
-    track_dict = perso_format_to_trackid_format(class_dict)
+    track_dict = perso_format_to_trackid_format(class_dict['detections'])
 
     ## Step 2: For each track, extract the features per image and get the class scores
     track_class_dict = defaultdict(list)
     for track_id, track_dets in track_dict.items():
+        elapsed_time = time.time() - start_time
+        progress_bar(
+            track_id,
+            len(track_dict),
+            'Classifying tracks.%s' % ('(%ds left)' % (elapsed_time/track_id*(len(track_dict)-track_id)) if len(track_class_dict) > 0 else '')
+        )
         features = []
         idxs = []
         for det in track_dets:
-            idxs.append(det['frame'])
-            frame_idx = det['frame']
-            img = my_video.get_frame_idx(frame_idx)
+            idx = det['image_id']-1  # image_id starts at 1 in coco format
+            idxs.append(idx)
+            img = my_video.get_frame_at_idx(idx)
             x, y, w, h = det['bbox']
             img_cropped = img[int(y*img.shape[0]):int((y+h)*img.shape[0]), int(x*img.shape[1]):int((x+w)*img.shape[1])]
             feature = extract_feature(model, transform, img_cropped)
@@ -437,6 +446,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             'scores': get_class_scores(features, feature_database),
             'idxs': idxs
         }
+    progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_time), log=log, completed=True)
 
     ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
     final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
@@ -459,6 +469,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
     save_json_file(class_dict, output_file)
+    print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
 
     return class_dict
 
@@ -608,6 +619,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         os.path.join(args.output, 'class_%s.json' % (det_tracker_str)),
         class_database=args.class_database,
         image_size=image_size,
+        device=args.device,
         log=log
     )
     classes = ['NoID']
@@ -809,7 +821,7 @@ def get_args():
         help=helptext_text_prompt
     )
     parser.add_argument(
-        '-C', '--class_database',
+        '-P', '--class_database',
         default=os.path.join('/shared', 'group_dict'),
         type=str,
         help=helptext_class_database
