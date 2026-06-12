@@ -1,4 +1,3 @@
-from collections import defaultdict
 import sys
 import os
 import cv2
@@ -11,6 +10,7 @@ torch.cuda.init()
 from argparse import ArgumentParser
 import pdb
 from scipy.ndimage import gaussian_filter
+from collections import defaultdict
 
 # Megadetector
 from megadetector.detection import run_detector
@@ -377,7 +377,9 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, n_tracks), log=log, completed=True)
 
     # Saving
-    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': image_size}
+    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': image_size, 'n_tracks': n_tracks, 'tracker_type': tracker_type}
+    if 'detection_classes' in detection_dict:
+        output_results['detection_classes'] = detection_dict['detection_classes']
     save_json_file(output_results, output_file)
     return output_results
 
@@ -401,9 +403,9 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     # Initialization
     start_time = time.time()
     ## Check if the output file already exists
-    # if os.path.exists(output_file):
-    #     print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
-    #     return load_json_file(output_file)
+    if os.path.exists(output_file):
+        print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
+        return load_json_file(output_file)
     ## Classification names
     if class_database:
         classes = sorted(os.listdir(class_database))
@@ -447,6 +449,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             'idxs': idxs
         }
     progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_time), log=log, completed=True)
+    # Save the intermediate results with the scores before resolving the final class assignments to avoid losing information in case of crash and for debugging purposes
+    save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, output_file.replace('.json', '_with_scores.json'))
 
     ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
     final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
@@ -460,13 +464,11 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             assigned_class, assigned_score = final_assignments.get(track_id,("NoID", 0.0))
             n_tracks = max(n_tracks, track_id)
             det['score'] = det.get('det_score', det.get('score', None))
-            # Keep detector class untouched if it exists
-            det['det'] = det.get('det', 0)
             det['id'] = class_to_idx[assigned_class]
             det['id_score'] = assigned_score
 
     # Saving
-    class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
+    # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
     save_json_file(class_dict, output_file)
     print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
@@ -535,7 +537,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         display_fct=args.display_fct
     )
 
-    if args.eval_detection:
+    if args.eval_detection and gt_file_class_mot:
         # Load detection results if not already loaded
         detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
         # Convert MOT GT to COCO format for evaluation
@@ -578,7 +580,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         log=log
     )
 
-    if args.eval_tracking:
+    if args.eval_tracking and gt_file_class_mot:
         # Load tracking results if not already loaded
         tracking_dict = load_as_detection_dict(tracking_dict, image_size=image_size, log=log)
         # Save tracking results in MOT format for evaluation
@@ -625,7 +627,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     classes = ['NoID']
     if check_stop(log=log): return 0
 
-    if args.eval_classification:
+    if args.eval_classification and gt_file_class_mot:
         # Evaluate classification results using COCO metrics
         gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=classes)
         gt_class_coco_file = save_coco_format(gt_dict_coco_class['detections'], os.path.join(args.output, 'gt_class_coco_format'), labels=classes)
@@ -672,8 +674,9 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             os.path.join(args.output, 'video_demo_%s.mp4' % (det_tracker_str)),
             max_res=args.max_res,
             display_fct=args.display_fct,
-            detection_classes=class_dict['detection_classes'],
-            classification_classes=class_dict['classification_classes'],
+            detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
+            classification_classes=class_dict.get('classification_classes'),
+            n_tracks=tracking_dict.get('n_tracks', None),
             del_imgs=args.del_imgs,
             log=log
         )
@@ -817,7 +820,7 @@ def get_args():
     parser.add_argument(
         '-p', '--text_prompt',
         type=str,
-        default="an animal",
+        default="a baboon",
         help=helptext_text_prompt
     )
     parser.add_argument(

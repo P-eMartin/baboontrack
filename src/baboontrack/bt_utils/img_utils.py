@@ -355,7 +355,7 @@ class VideoFrameIterator:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return frame
     
-    def plot_annotations(self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None, classification_classes=None, detection_classes=None, bbox_format='xywh', bbox_normalized=True, font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, log=None):
+    def plot_annotations(self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None, classification_classes=None, detection_classes=None, n_tracks=None, bbox_format='xywh', bbox_normalized=True, font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, log=None):
         '''
         Plot the annotations on the video frames and save the video.
 
@@ -369,6 +369,7 @@ class VideoFrameIterator:
             display_fct: function, a function to call to display the frames (default None)
             classification_classes: list, the classification classes (default None)
             detection_classes: list, the detection classes (default None)
+            n_tracks: int, the number of tracks (default None)
             bbox_format: str, the format of the bounding box coordinates (default 'xywh')
             bbox_normalized: bool, whether the bounding box coordinates are normalized (default True)
             font: int, the font to use for the text (default cv2.FONT_HERSHEY_SIMPLEX)
@@ -403,6 +404,11 @@ class VideoFrameIterator:
             classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_VIRIDIS)
         else:
             classification_color_dict = None
+        ## Track colors based on the number of tracks
+        if n_tracks is not None:
+            track_color_dict = get_colormap_dict([i for i in range(1, n_tracks + 1)], cv2.COLORMAP_TURBO, cycle_size=20)
+        else:
+            track_color_dict = None
 
         # Check if the number of images in the folder is the same as the video length
         if len(os.listdir(output_folder)) != self.length:
@@ -437,12 +443,14 @@ class VideoFrameIterator:
                 frame_annotations = annotations[idx] if idx < len(annotations) else []
                 for ann in frame_annotations:
                     bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
-                    track_id = ann['track_id']
+                    track_id = ann.get('track_id')
                     det = detection_classes[ann['det']] if detection_classes else ann['det']
                     det_score = ann.get('score', ann.get('det_score'))
                     class_id = classification_classes[ann['id']] if classification_classes else ann['id']
                     id_score = ann.get('id_score', None)
-                    if detection_color_dict is not None:
+                    if track_color_dict is not None and track_id is not None:
+                        color_det = track_color_dict[track_id]
+                    elif detection_color_dict is not None:
                         color_det = detection_color_dict[det]
                     else:
                         color_det = (0, 255, 0) # default color is green
@@ -450,6 +458,8 @@ class VideoFrameIterator:
                         color_id = classification_color_dict[class_id]
                     else:
                         color_id = (255, 0, 0) # default color is blue
+                    # Color bbox is class color if more than 1 class, otherwise detection color
+                    color_bbox = color_id if classification_color_dict is not None and len(classification_classes) > 1 else color_det
                     cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
                     # Det score and Track ID - top of the box
                     # text = ('%s (%.2g) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
