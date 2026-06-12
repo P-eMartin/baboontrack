@@ -9,6 +9,7 @@ if not hasattr(np, "asfarray"):
     np.asfarray = lambda a, **kwargs: np.asarray(a, dtype=float)
 import csv
 import os
+import copy
 from .io_utils import print_and_log, save_json_file, get_value_with_precision, save_dict_as_csv, zip_folder
 from collections import defaultdict
 import zipfile
@@ -131,7 +132,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                 'iscrowd': det['iscrowd'] if 'iscrowd' in det else 0,
                 'attributes': {
                     'name': 'NoID',
-                    'track_id': det['track_id'],
+                    'track_id': det.get('track_id', det.get('attributes', {}).get('track_id')),
                     'visibility': det['visibility'] if 'visibility' in det else 1,
                 }
             })
@@ -242,7 +243,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
         dict: a dictionary containing the loaded detection/tracking results, with frame IDs as keys and
             lists of detections as values. Each detection is a dictionary with keys 'track_id', 'bbox', 'id', 'visibility', 'not_ignored', and 'skipped'.
     '''
-
+    labels = None
     def parse_rows(reader):
         detection_dict = defaultdict(list)
 
@@ -270,10 +271,14 @@ def load_mot_format(input_file, boundaries=None, log=None):
             with zf.open("gt/gt.txt") as f:
                 reader = csv.reader(line.decode() for line in f)
                 detection_dict = parse_rows(reader)
+            with zf.open("gt/labels.txt") as f:
+                labels = [line.decode().strip() for line in f]
 
     elif os.path.isdir(input_file):
         with open(os.path.join(input_file, "gt", "gt.txt"), newline="") as f:
             detection_dict = parse_rows(csv.reader(f))
+        with open(os.path.join(input_file, "gt", "labels.txt"), "r") as f:
+            labels = [line.strip() for line in f]
 
     elif os.path.isfile(input_file):
         with open(input_file, newline="") as f:
@@ -292,22 +297,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
             if start <= frame_id-1 <= end
         }
 
-    return detection_dict
-
-def save_mot_to_mot(input_file, output_folder, boundaries=None, log=None):
-    '''
-    An utility based on the load_mot_format function to save MOT format files with the same or different boundaries.
-    
-    Args:
-        input_file: str, the path to the input MOT format file
-        output_folder: str, the path to the output folder which will contain the gt/gt.txt file
-        boundaries: tuple of int, the start and end frame IDs to save (default None, if None, all frames are saved)
-        log: logging.Logger, the logger to log the information (default None)
-
-    Returns:
-        int, 1 if the file was properly saved
-    '''
-    detection_dict = load_mot_format(input_file, boundaries=boundaries, log=log)
+    return detection_dict, labels
 
 def mot_to_coco_format(mot_dict, image_size=None, cat_id_override=None):
     '''
@@ -361,7 +351,9 @@ def mot_gt_to_coco_gt(mot_gt_file, image_size=None, cat_id_override=None, catego
         dict, the converted COCO-format ground truth dictionary with 'annotations' and 'categories'
     '''
     if isinstance(mot_gt_file, str):
-        mot_dict = load_mot_format(mot_gt_file)
+        mot_dict, mot_categories = load_mot_format(mot_gt_file)
+        if categories is None:
+            categories = mot_categories
     else:
         mot_dict = mot_gt_file
     coco_gt = {
@@ -430,6 +422,48 @@ def update_eval_csv(
     # 4. Save back
     # ------------------------------------------------------------
     df.to_csv(csv_path, index=False)
+
+def solve_id_conflicts(_detections, labels_input, labels_output, default_label="NoID", log=None):
+    '''
+    Solve ID conflicts between input labels (name) and expetected labels by matching labels from input
+    to the expected labels. Check if name match (lower case) and modify id accordingly. If no match, assign default label and log the conflict.
+
+    Args:
+        detections: list of dict, the list of detections with 'id' and 'attributes' keys
+        labels_input: list of str, the list of input labels (names)
+        labels_output: list of str, the list of expected output labels (names)
+        default_label: str, the default label to assign in case of conflict (default "NoID")
+        log: logging.Logger, the logger to log the information (default None)
+    
+    Returns:
+        list of dict, the list of detections with resolved ID conflicts
+    '''
+    detections = copy.deepcopy(_detections) # To avoid modifying the original detections
+    name_to_id_output = {label.lower(): idx for idx, label in enumerate(labels_output)}
+    nb_id_conflict = 0
+    total_detections = 0
+    for det in detections:
+        if isinstance(det, dict):
+            total_detections += 1
+            id_input = det['id']
+            name = labels_input[id_input].lower()
+            if name in name_to_id_output:
+                det['id'] = name_to_id_output[name]
+            else:
+                nb_id_conflict += 1
+                det['id'] = name_to_id_output.get(default_label.lower(), 0)
+        elif isinstance(det, list):
+            for _det in det:
+                total_detections += 1
+                id_input = _det['id']
+                name = labels_input[id_input].lower()
+                if name in name_to_id_output:
+                    _det['id'] = name_to_id_output[name]
+                else:
+                    nb_id_conflict += 1
+                    _det['id'] = name_to_id_output.get(default_label.lower(), 0)
+    print_and_log(f"Total ID conflicts resolved: {nb_id_conflict} over {total_detections} detections.", log=log)
+    return detections
 
 #####
 ## Evaluation of the detection and tracking results
