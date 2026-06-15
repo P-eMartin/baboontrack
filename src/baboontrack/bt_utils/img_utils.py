@@ -444,10 +444,10 @@ class VideoFrameIterator:
                 for ann in frame_annotations:
                     bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
                     track_id = ann.get('track_id')
-                    det = detection_classes[ann['det']] if detection_classes else ann['det']
-                    det_score = ann.get('score', ann.get('det_score'))
-                    class_id = classification_classes[ann['id']] if classification_classes else ann['id']
-                    id_score = ann.get('id_score', None)
+                    det = detection_classes[ann['det_id']] if detection_classes else ann['det_id']
+                    det_score = ann.get('det_score', ann.get('det_score'))
+                    class_id = classification_classes[ann['category_id']] if classification_classes else ann['category_id']
+                    id_score = ann.get('score', None)
                     if track_color_dict is not None and track_id is not None:
                         color_det = track_color_dict[track_id]
                     elif detection_color_dict is not None:

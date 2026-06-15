@@ -82,7 +82,7 @@ def compute_iou(boxA, boxB, image_size):
     iou = interArea / float(boxAArea + boxBArea - interArea)
     return iou
 
-def process_detections(detections, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=None, log=None):
+def process_detections(detections, last_tracks, track_id, image_size, score, iou_threshold=0.3, log=None):
     '''
     Process each detection and assign a track ID based on the last tracks and IoU threshold.
     Visibility is set to 1 if no overlap with other tracks, and decreases as the IoU with other tracks increases.
@@ -94,8 +94,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
         image_size: list of int, the size of the image in the format [width, height]
         score: float, the minimum detection score
         iou_threshold: float, the IoU threshold for matching detections with tracks
-        default_class_id: int, the default class ID for detections without a matching track
-        classes: list of str, the list of class names to consider for tracking (default ["animal","person","vehicle"])
+        log: logger, the logger to print the information (default None)
     Returns:
         int, the updated track ID after assignment
     '''
@@ -152,13 +151,12 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
             detection['track_id'] = track_id
             track_id += 1
 
-        if default_class_id is not None:
-            detection['id'] = default_class_id
-            detection['id_score'] = 0
-        
-        detection['det'] = int(detection.get('category', 1)-1)
+        # Megadetector + coco format compatibility
+        detection['category_id'] = int(detection.get('category', detection.get('category_id', 1)))
         detection['score'] = detection.get('score', detection.get('conf', 0))
-        detection['visibility'] = get_value_with_precision(1-max([match['iou'] for match in matches if match['det_idx'] == idx and match['track_id'] != detection['track_id']], default=0))
+        detection['visibility'] = get_value_with_precision(
+            1-max([match['iou'] for match in matches if match['det_idx'] == idx and match['track_id'] != detection['track_id']], default=0)
+        )
         # Remove the normalized keys
         if 'category' in detection: del detection['category']
         if 'conf' in detection: del detection['conf']
@@ -234,7 +232,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         det_result = model.generate_detections_one_image(frame, detection_threshold=score)['detections'] # image_id=idx
 
         ## Assign track_ids
-        track_id = process_detections(det_result, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=0)
+        track_id = process_detections(det_result, last_tracks, track_id, image_size, score, iou_threshold=0.3, log=log)
 
         ## Update Tracking
         if len(tracking_buffer) > tracking_size:
@@ -254,7 +252,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         
     return output_results
 
-def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score=0.5, tracker_type=None, image_size=None, log=None):
+def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score_th=0.5, tracker_type=None, image_size=None, log=None):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -264,7 +262,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         output_file: str, the path to save the output file
         device: str, the device to use for the tracking
         tracking_size: int, the size of the tracking buffer in number of frames (default 30)
-        score: float, the minimum detection score (default 0.5)
+        score_th: float, score threshold for detections to be considered for tracking (default 0.5)
         tracker_type: str, the type of tracker to use (default None)
         image_size: tuple, the size of the image (width, height)
         log: logger, the logger to print the information (default None)
@@ -340,7 +338,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 bboxes.append([x1, y1, x2, y2])
             bboxes = np.array(bboxes)
             # Use "score" or "det_score" according to availability
-            scores = np.array([det.get('score', det.get('det_score', 0)) for det in det_result])
+            scores = np.array([det['score'] for det in det_result])
             if tracker_type == "bytetrack":
                 _current_tracks = tracker.update(bboxes, scores)
             elif tracker_type == "botsort":
@@ -364,7 +362,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
             all_tracks.append(current_tracks)
         elif tracker_type == "IoU":
             ## Assign track_ids
-            track_id = process_detections(det_result, last_tracks, track_id, image_size, score, iou_threshold=0.3, default_class_id=0)
+            track_id = process_detections(det_result, last_tracks, track_id, image_size, score_th, iou_threshold=0.3, log=log)
             n_tracks = track_id - 1
             ## Update Tracking
             if len(tracking_buffer) > tracking_size:
@@ -469,13 +467,12 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             track_id = det['track_id']
             assigned_class, assigned_score = final_assignments.get(track_id,("NoID", 0.0))
             n_tracks = max(n_tracks, track_id)
-            det['score'] = det.get('det_score', det.get('score', None))
-            det['id'] = class_to_idx[assigned_class]
-            det['id_score'] = assigned_score
-            # Save initial detection class if available
-            det['det'] = det.get('det', det['category_id']-1 if 'category_id' in det else 0)
-            det['category_id'] = det['id']  # Keep category_id for plotting
-
+            # Save initial detection 
+            det['det_id'] = det.get('category_id', 1)
+            det['det_score'] = det.get('score')
+            # Reassign the class and score based on the classification results
+            det['category_id'] = class_to_idx[assigned_class]
+            det['score'] = assigned_score
     # Saving
     # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
@@ -538,7 +535,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video,
         os.path.join(args.output, 'det_%s.json') % det_model_str,
         device=args.device,
-        score=args.det_score,
+        score=args.det_score_th,
         tracking_size=args.tracking_size,
         det_model=args.det_model,
         text_prompt=args.text_prompt,
@@ -583,7 +580,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         os.path.join(args.output, 'track_%s.json' % det_tracker_str),
         device=args.device,
         tracking_size=args.tracking_size,
-        score=args.det_score,
+        score=args.det_score_th,
         tracker_type=None if args.tracker_type == 'IoU' and 'sam3' not in args.det_model else args.tracker_type,
         image_size=image_size,
         log=log
@@ -799,10 +796,10 @@ def get_args():
         help=helptext_max_res
     )
     parser.add_argument(
-        '-s', '--det_score',
+        '-s', '--det_score_th',
         default=0.5,
         type=float,
-        help=helptext_det_score
+        help=helptext_det_score_th
     )
     parser.add_argument(
         '-c', '--del-imgs',

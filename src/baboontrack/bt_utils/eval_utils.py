@@ -51,7 +51,7 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
                 det['bbox'][2] / image_size[0],
                 det['bbox'][3] / image_size[1]
             ],
-            'score': det.get('score', det.get('det_score', 1)),
+            'score': det['score'],
             'track_id': det.get('track_id', det.get('attributes', {}).get('track_id')),
             # Add segmentation if available
             'segmentation': det.get('segmentation'),
@@ -100,14 +100,14 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
             for det in dets_or_key:
                 coco_list.append({
                     'image_id': idx + 1 + frame_id_offset,
-                    'category_id': int(det['id'] + 1) if 'id' in det else 1,
+                    'category_id': det['category_id'],
                     'bbox': [
                         get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
                         get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
                         get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                         get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                     ],
-                    'score': get_value_with_precision(det.get('det_score', det.get('score', 1))),
+                    'score': get_value_with_precision(det['score']),
                     'attributes': {
                         'name': 'NoID',
                         'track_id': int(det['track_id'] + 1),
@@ -120,14 +120,14 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                 continue
             coco_list.append({
                 'image_id': det['image_id'] + frame_id_offset,
-                'category_id': det['id'] if 'id' in det else 1,
+                'category_id': det['category_id'],
                 'bbox': [
                     get_value_with_precision(det['bbox'][0] * image_size[0], 10) if image_size is not None else det['bbox'][0],
                     get_value_with_precision(det['bbox'][1] * image_size[1], 10) if image_size is not None else det['bbox'][1],
                     get_value_with_precision(det['bbox'][2] * image_size[0], 10) if image_size is not None else det['bbox'][2],
                     get_value_with_precision(det['bbox'][3] * image_size[1], 10) if image_size is not None else det['bbox'][3]
                 ],
-                'score': get_value_with_precision(det['score'] if 'score' in det else 1),
+                'score': get_value_with_precision(det['score']),
                 'area': det['area'] if 'area' in det else get_value_with_precision(det['bbox'][2] * det['bbox'][3] if image_size is None else det['bbox'][2] * image_size[0] * det['bbox'][3] * image_size[1], 10),
                 'iscrowd': det['iscrowd'] if 'iscrowd' in det else 0,
                 'attributes': {
@@ -188,7 +188,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
                 mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
                 mot_dict['not ignored'].append(1)
-                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det.get('id', 0)+1))
+                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'])
                 mot_dict['visibility'].append(det.get('visibility', 1))
                 mot_dict['skipped'].append(0)
         elif isinstance(detection_dict, dict): # Case when detection_dict is a dictionary with dets_or_key being the key.
@@ -203,7 +203,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
                 mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
                 mot_dict['not ignored'].append(det.get('not_ignored', 1))
-                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else int(det.get('id', 0)+1))
+                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'])
                 mot_dict['visibility'].append(det.get('visibility', 1))
                 mot_dict['skipped'].append(det.get('skipped', 0))
         else: # Case when detection_dict is a list of dictionaries (in COCO format)
@@ -217,7 +217,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
             mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
             mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
             mot_dict['not ignored'].append(det.get('not_ignored', 1))
-            mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det.get('category_id', 1))
+            mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'])
             mot_dict['visibility'].append(det.get('visibility', 1))
             mot_dict['skipped'].append(det.get('skipped', 0))
     output_file = os.path.join(folder_to_zip, 'gt.txt')
@@ -241,16 +241,17 @@ def load_mot_format(input_file, boundaries=None, log=None):
 
     Returns:
         dict: a dictionary containing the loaded detection/tracking results, with frame IDs as keys and
-            lists of detections as values. Each detection is a dictionary with keys 'track_id', 'bbox', 'id', 'visibility', 'not_ignored', and 'skipped'.
+            lists of detections as values. Each detection is a dictionary with keys 'id','track_id', 'bbox', 'category_id', 'visibility', 'not_ignored', and 'skipped'.
     '''
     labels = None
     def parse_rows(reader):
         detection_dict = defaultdict(list)
 
-        for row in reader:
+        for idx, row in enumerate(reader):
             frame_id = int(row[0])
 
             detection_dict[frame_id].append({
+                "id": idx+1,
                 "track_id": int(row[1]) - 1,
                 "bbox": [
                     max(int(float(row[2])), 0),
@@ -258,7 +259,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
                     max(int(float(row[4])), 0),
                     max(int(float(row[5])), 0)
                 ],
-                "id": int(float(row[7])) - 1,
+                "category_id": int(float(row[7])),
                 "visibility": float(row[8]),
                 "not_ignored": int(row[6]),
                 "skipped": int(row[9]) if len(row) > 9 else 0
@@ -319,14 +320,14 @@ def mot_to_coco_format(mot_dict, image_size=None, cat_id_override=None):
             coco_list.append({
                 'id': idx,
                 'image_id': frame_id,
-                'category_id': cat_id_override if cat_id_override is not None else int(det['id'] + 1) if 'id' in det else 1,
+                'category_id': cat_id_override if cat_id_override is not None else det['category_id'],
                 'bbox': [
                     get_value_with_precision(det['bbox'][0] * image_size[0] if image_size is not None else det['bbox'][0], 10),
                     get_value_with_precision(det['bbox'][1] * image_size[1] if image_size is not None else det['bbox'][1], 10),
                     get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                     get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                 ],
-                'score': get_value_with_precision(det.get('score', det.get('det_score', 1))),
+                'score': get_value_with_precision(det['score']),
                 'iscrowd': 0,
                 'area': get_value_with_precision(det['bbox'][2] * det['bbox'][3] if image_size is None else det['bbox'][2] * image_size[0] * det['bbox'][3] * image_size[1], 10),
                 'attributes': {
@@ -429,7 +430,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
     to the expected labels. Check if name match (lower case) and modify id accordingly. If no match, assign default label and log the conflict.
 
     Args:
-        detections: list of dict, the list of detections with 'id' and 'attributes' keys
+        detections: list of dict, the list of detections with 'category_id' key
         labels_input: list of str, the list of input labels (names)
         labels_output: list of str, the list of expected output labels (names)
         default_label: str, the default label to assign in case of conflict (default "NoID")
@@ -445,23 +446,23 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
     for det in detections:
         if isinstance(det, dict):
             total_detections += 1
-            id_input = det['id']
+            id_input = det['category_id']
             name = labels_input[id_input].lower()
             if name in name_to_id_output:
-                det['id'] = name_to_id_output[name]
+                det['category_id'] = name_to_id_output[name]
             else:
                 nb_id_conflict += 1
-                det['id'] = name_to_id_output.get(default_label.lower(), 0)
+                det['category_id'] = name_to_id_output.get(default_label.lower(), 0)
         elif isinstance(det, list):
             for _det in det:
                 total_detections += 1
-                id_input = _det['id']
+                id_input = _det['category_id']
                 name = labels_input[id_input].lower()
                 if name in name_to_id_output:
-                    _det['id'] = name_to_id_output[name]
+                    _det['category_id'] = name_to_id_output[name]
                 else:
                     nb_id_conflict += 1
-                    _det['id'] = name_to_id_output.get(default_label.lower(), 0)
+                    _det['category_id'] = name_to_id_output.get(default_label.lower(), 0)
     print_and_log(f"Total ID conflicts resolved: {nb_id_conflict} over {total_detections} detections.", log=log)
     return detections
 

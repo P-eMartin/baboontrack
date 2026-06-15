@@ -16,8 +16,8 @@ The resolution will be with respect to the largest dimension of the image to mai
 A higher resolution will increase the computation time.
 '''
 
-helptext_det_score = '''Baboon detection threshold. Default: 0 to consider all detected Baboons. Max: 1.
-The higher the value, the more likely the detected Baboons will be correct.
+helptext_det_score_th = '''Detection threshold. Default: 0 to consider all detections. Max: 1.
+The higher the value, the more likely the detectons will be correct.
 '''
 
 helptext_del_imgs = '''Remove the images created for the video.
