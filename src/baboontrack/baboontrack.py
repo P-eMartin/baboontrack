@@ -219,7 +219,9 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
             print_and_log('Video resolution: %s' % (str(image_size)), log=log)
 
         ## Progress bar with estimated time remaining
-        elapsed_time = time.time() - start_time
+        if idx == 0:
+            start_loop = time.time()
+        elapsed_time = time.time() - start_loop
         progress_bar(
             idx,
             len(my_video),
@@ -248,7 +250,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     progress_bar(len(my_video), len(my_video), 'Detection and Tracking done in %ds with %d tracks' % (time.time() - start_time, track_id), log=log, completed=True)
         
     # Saving
-    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size}
+    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size, 'n_tracks': track_id}
     save_json_file(output_results, output_file)
         
     return output_results
@@ -312,7 +314,9 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     all_tracks = []
     for idx, (frame, det_result) in enumerate(zip(my_video, detection_dict['detections'])):
         ## Progress bar with estimated time remaining
-        elapsed_time = time.time() - start_time
+        if idx == 0:
+            start_loop = time.time()
+        elapsed_time = time.time() - start_loop
         progress_bar(
             idx,
             len(my_video),
@@ -432,12 +436,14 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
 
         ## Step 2: For each track, extract the features per image and get the class scores
         track_class_dict = defaultdict(list)
-        for track_id, track_dets in track_dict.items():
-            elapsed_time = time.time() - start_time
+        for idx, (track_id, track_dets) in enumerate(track_dict.items()):
+            if idx == 0:
+                start_loop = time.time()
+            elapsed_time = time.time() - start_loop
             progress_bar(
                 track_id,
                 len(track_dict),
-                'Classifying tracks.%s' % ('(%ds left)' % (elapsed_time/track_id*(len(track_dict)-track_id)) if len(track_class_dict) > 0 else '')
+                'Classifying tracks.%s' % ('(%ds left)' % (elapsed_time/idx*(len(track_dict)-idx)) if idx > 0 else '')
             )
             features = []
             idxs = []
@@ -581,7 +587,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         os.path.join(args.output, 'track_%s.json' % det_tracker_str),
         device=args.device,
         tracking_size=args.tracking_size,
-        score=args.det_score_th,
+        score_th=args.det_score_th,
         tracker_type=None if args.tracker_type == 'IoU' and 'sam3' not in args.det_model else args.tracker_type,
         image_size=image_size,
         log=log
@@ -639,6 +645,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=gt_labels)
         gt_class_coco_file = os.path.join(args.output, 'gt_class_coco_format.json')
         save_json_file(gt_dict_coco_class, gt_class_coco_file)
+        gt_classes = [cat['name'] for cat in gt_dict_coco_class['categories']]
         # gt_class_coco_file = save_coco_format(gt_dict_coco_class['annotations'], os.path.join(args.output, 'gt_class_coco_format'), labels=gt_labels)
         uniform_class_list = solve_id_conflicts(class_dict['detections'], classes, gt_labels, default_label='NoID', log=log)
         class_coco_file = save_coco_format(
@@ -686,9 +693,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
             classification_classes=class_dict.get('classification_classes'),
-            n_tracks=tracking_dict.get('n_tracks', None),
+            n_tracks=tracking_dict.get('n_tracks', 0),
             del_imgs=args.del_imgs,
-            gt_annotations=coco_to_perso_format(gt_dict_coco_class) if args.eval_classification and gt_file_class_mot else None,
+            gt_annotations=coco_to_perso_format(gt_dict_coco_class['annotations'], image_size=image_size) if args.eval_classification and gt_file_class_mot else None,
+            gt_classes=gt_classes if args.eval_classification and gt_file_class_mot else None,
             log=log
         )
         if check_stop(log=log): return 0
@@ -705,11 +713,11 @@ def main_loop(args, log=None):
         log: logger, the logger to print the information
     '''
     det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-    det_models = ['sam3']  # for testing
+    # det_models = ['sam3']  # for testing
     prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
-    prompts = ['a baboon']  # for testing
+    # prompts = ['a baboon']  # for testing
     tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
-    tracker_types = ['sam3']  # for testing
+    # tracker_types = ['sam3']  # for testing
     gt_files_name = ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
     for det_model in det_models:
         args.det_model = det_model

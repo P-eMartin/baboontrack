@@ -85,7 +85,7 @@ def coco_to_perso_format(coco_list, image_size=None, frame_id_offset=0):
                 det['bbox'][2] / image_size[0],
                 det['bbox'][3] / image_size[1]
             ],
-            'score': det['score'],
+            'score': det.get('score'),
             'track_id': det.get('track_id', det.get('attributes', {}).get('track_id')),
             # Add segmentation if available
             'segmentation': det.get('segmentation'),
@@ -104,8 +104,9 @@ def perso_format_to_trackid_format(perso_list):
         dict, key: track ID, value: list of annotations
     '''
     trackid_dict = defaultdict(list)
-    for frame_dets in perso_list:
+    for idx, frame_dets in enumerate(perso_list):
         for det in frame_dets:
+            det['image_id'] = idx + 1
             trackid_dict[det['track_id']].append(det)
     return dict(trackid_dict)
 
@@ -141,7 +142,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                         get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                     ],
-                    'score': get_value_with_precision(det['score']),
+                    'score': get_value_with_precision(det.get('score')),
                     'attributes': {
                         'name': 'NoID',
                         'track_id': int(det['track_id'] + 1),
@@ -161,7 +162,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                     get_value_with_precision(det['bbox'][2] * image_size[0], 10) if image_size is not None else det['bbox'][2],
                     get_value_with_precision(det['bbox'][3] * image_size[1], 10) if image_size is not None else det['bbox'][3]
                 ],
-                'score': get_value_with_precision(det['score']),
+                'score': get_value_with_precision(det.get('score')),
                 'area': det['area'] if 'area' in det else get_value_with_precision(det['bbox'][2] * det['bbox'][3] if image_size is None else det['bbox'][2] * image_size[0] * det['bbox'][3] * image_size[1], 10),
                 'iscrowd': det['iscrowd'] if 'iscrowd' in det else 0,
                 'attributes': {
@@ -360,7 +361,7 @@ def mot_to_coco_format(mot_dict, image_size=None, cat_id_override=None):
                     get_value_with_precision(det['bbox'][2] * image_size[0] if image_size is not None else det['bbox'][2], 10),
                     get_value_with_precision(det['bbox'][3] * image_size[1] if image_size is not None else det['bbox'][3], 10)
                 ],
-                'score': get_value_with_precision(det['score']),
+                'score': get_value_with_precision(det.get('score')),
                 'iscrowd': 0,
                 'area': get_value_with_precision(det['bbox'][2] * det['bbox'][3] if image_size is None else det['bbox'][2] * image_size[0] * det['bbox'][3] * image_size[1], 10),
                 'attributes': {

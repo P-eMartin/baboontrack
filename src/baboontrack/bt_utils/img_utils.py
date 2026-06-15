@@ -358,7 +358,7 @@ class VideoFrameIterator:
     def plot_annotations(
             self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None,
             classification_classes=None, detection_classes=None, n_tracks=0, bbox_format='xywh', bbox_normalized=True,
-            font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, gt_annotations=None, log=None
+            font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, gt_annotations=None, gt_classes=None, log=None
         ):
         '''
         Plot the annotations on the video frames and save the video.
@@ -379,6 +379,7 @@ class VideoFrameIterator:
             font: int, the font to use for the text (default cv2.FONT_HERSHEY_SIMPLEX)
             del_imgs: bool, whether to delete the annotated images after creating the video (default False)
             gt_annotations: list of dicts, the ground truth annotations to plot (default None)
+            gt_classes: list, the ground truth classes (default None)
             log: logging.Logger, the logger to log the information (default None)
 
         Returns:
@@ -453,12 +454,12 @@ class VideoFrameIterator:
                     draw_annotations(
                         frame,
                         gt_frame_annotations,
-                        image_size,
+                        image_size = image_size,
                         detection_classes=detection_classes,
-                        classification_classes=classification_classes,
+                        classification_classes=gt_classes,
                         track_color_dict=track_color_dict,
                         detection_color_dict=detection_color_dict,
-                        classification_color_dict=classification_color_dict,
+                        classification_color_dict=get_colormap_dict(gt_classes, cv2.COLORMAP_VIRIDIS),
                         thickness=thickness,
                         fontscale=fontscale,
                         font=font,
@@ -499,7 +500,7 @@ class VideoFrameIterator:
         return 1
 
 def draw_annotations(
-    frame, frame_annotations, image_size, detection_classes=None, classification_classes=None, track_color_dict=None,
+    frame, frame_annotations, image_size=None, detection_classes=None, classification_classes=None, track_color_dict=None,
     detection_color_dict=None, classification_color_dict=None, thickness=2, fontscale=0.5, font=None, text_position="above",  # "above" or "below"
     text_append=''
 ):
@@ -534,7 +535,9 @@ def draw_annotations(
         )
 
         track_id = ann.get("track_id")
-        det = detection_classes[ann["det_id"]] if detection_classes else ann["det_id"]
+        det_id = ann.get("det_id")
+        if det_id and detection_classes:
+            det_id = detection_classes[max(0, det_id-1)]  # Convert to 0-based index for detection_classes
         det_score = ann.get("det_score")
         class_id = classification_classes[ann["category_id"]] if classification_classes else ann["category_id"]
         id_score = ann.get("score")
@@ -542,8 +545,8 @@ def draw_annotations(
         # COLORS
         if track_color_dict and track_id:
             color_det = track_color_dict[track_id]
-        elif detection_color_dict:
-            color_det = detection_color_dict[det]
+        elif detection_color_dict and det_id:
+            color_det = detection_color_dict[det_id]
         else:
             color_det = (255, 0, 0)
         if classification_color_dict:
@@ -569,11 +572,11 @@ def draw_annotations(
         # DET TEXT
         text = (
             text_append
-            + ("" if det is None else f"{det} ")
+            + ("" if det_id is None else f"{det_id} ")
             + ("" if det_score is None else f"({det_score:.2g}) ")
             + (
                 ""
-                if track_id is None or "Track " in str(det)
+                if track_id is None or "Track " in str(det_id)
                 else f"Track {track_id}"
             )
         ).replace("(0.", "(.").replace("(-0.", "(-.")
@@ -583,7 +586,7 @@ def draw_annotations(
             text,
             (bbox[0], base_y),
             fontscale,
-            color_bg=color_det,
+            color_bg=color_bbox,
             thickness=thickness,
             font=font,
         )
@@ -599,7 +602,7 @@ def draw_annotations(
             text,
             (bbox[0], class_y - txt_h if text_position == "above" else class_y + txt_h),
             fontscale,
-            color_bg=color_id,
+            color_bg=color_bbox,
             thickness=thickness,
             font=font,
         )
@@ -739,6 +742,9 @@ def get_colormap_dict(classes, colormap=cv2.COLORMAP_VIRIDIS, cycle_size=None):
     color_values = np.linspace(0, 255, cycle_size, dtype=np.uint8)[:, None]
     colors = cv2.applyColorMap(color_values, colormap).reshape(-1, 3)
     colors = [tuple(map(int, c)) for c in colors]
+    # Case when classes is a dict with key "name"
+    if isinstance(classes[0], dict) and "name" in classes[0]:
+        return {cls["name"]: colors[i % cycle_size] for i, cls in enumerate(classes)}
     return {cls: colors[i % cycle_size] for i, cls in enumerate(classes)}
 
     
