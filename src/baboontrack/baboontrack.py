@@ -6,7 +6,6 @@ import time
 import datetime
 import copy
 import torch
-torch.cuda.init()
 from argparse import ArgumentParser
 import pdb
 from scipy.ndimage import gaussian_filter
