@@ -355,7 +355,11 @@ class VideoFrameIterator:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return frame
     
-    def plot_annotations(self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None, classification_classes=None, detection_classes=None, n_tracks=None, bbox_format='xywh', bbox_normalized=True, font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, log=None):
+    def plot_annotations(
+            self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None,
+            classification_classes=None, detection_classes=None, n_tracks=0, bbox_format='xywh', bbox_normalized=True,
+            font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, gt_annotations=None, log=None
+        ):
         '''
         Plot the annotations on the video frames and save the video.
 
@@ -374,6 +378,7 @@ class VideoFrameIterator:
             bbox_normalized: bool, whether the bounding box coordinates are normalized (default True)
             font: int, the font to use for the text (default cv2.FONT_HERSHEY_SIMPLEX)
             del_imgs: bool, whether to delete the annotated images after creating the video (default False)
+            gt_annotations: list of dicts, the ground truth annotations to plot (default None)
             log: logging.Logger, the logger to log the information (default None)
 
         Returns:
@@ -394,21 +399,9 @@ class VideoFrameIterator:
         self.bgr = True  # Ensure frames are saved in BGR format for compatibility with OpenCV
 
         # Color dictionaries
-        ## Detection classes based on viridis colormap
-        if detection_classes is not None:
-            detection_color_dict = get_colormap_dict(detection_classes, cv2.COLORMAP_TURBO, cycle_size=20)
-        else:
-            detection_color_dict = None
-        ## Classification classes based on turbo colormap
-        if classification_classes is not None:
-            classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_VIRIDIS)
-        else:
-            classification_color_dict = None
-        ## Track colors based on the number of tracks
-        if n_tracks is not None:
-            track_color_dict = get_colormap_dict([i for i in range(1, n_tracks + 1)], cv2.COLORMAP_TURBO, cycle_size=20)
-        else:
-            track_color_dict = None
+        detection_color_dict = get_colormap_dict(detection_classes, cv2.COLORMAP_TURBO, cycle_size=20)
+        classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_VIRIDIS)
+        track_color_dict = get_colormap_dict([i for i in range(1, n_tracks + 1)], cv2.COLORMAP_TURBO, cycle_size=20)
 
         # Check if the number of images in the folder is the same as the video length
         if len(os.listdir(output_folder)) != self.length:
@@ -441,38 +434,37 @@ class VideoFrameIterator:
                         fontscale = max(0.35, 0.0005 * (image_size[0] + image_size[1]) / 3)                
                 ## Plot the annotations on the frame
                 frame_annotations = annotations[idx] if idx < len(annotations) else []
-                for ann in frame_annotations:
-                    bbox = get_bbox(ann['bbox'], bbox_format=ann.get('bbox_format', 'xywh'), bbox_normalized=ann.get('bbox_normalized', True), image_size=image_size)
-                    track_id = ann.get('track_id')
-                    det = detection_classes[ann['det_id']] if detection_classes else ann['det_id']
-                    det_score = ann.get('det_score', ann.get('det_score'))
-                    class_id = classification_classes[ann['category_id']] if classification_classes else ann['category_id']
-                    id_score = ann.get('score', None)
-                    if track_color_dict is not None and track_id is not None:
-                        color_det = track_color_dict[track_id]
-                    elif detection_color_dict is not None:
-                        color_det = detection_color_dict[det]
-                    else:
-                        color_det = (0, 255, 0) # default color is green
-                    if classification_color_dict is not None:
-                        color_id = classification_color_dict[class_id]
-                    else:
-                        color_id = (255, 0, 0) # default color is blue
-                    # Color bbox is class color if more than 1 class, otherwise detection color
-                    color_bbox = color_id if classification_color_dict is not None and len(classification_classes) > 1 else color_det
-                    cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_det, thickness)
-                    # Det score and Track ID - top of the box
-                    # text = ('%s (%.2g) Track %d' % (det, det_score, track_id)).replace('(0.', '(.').replace('(-0.', '(-.')
-                    text = (('' if det is None else '%s ' % (det)) + ('' if det_score is None else '(%.2g) ' % (det_score)) + ('' if track_id is None or 'Track ' in str(det) else 'Track %d' % (track_id))).replace('(0.', '(.').replace('(-0.', '(-.')
-                    spacing = int(thickness*1.5)
-                    txt_w, txt_h = write_text(frame, text, (bbox[0], bbox[1] - spacing), fontscale, color_bg=color_det, thickness=thickness, font=font)
-                    # Class ID and Class ID score - above the det text
-                    text = (('' if class_id is None else '%s ' % (class_id)) + ('' if id_score is None else '(%.2g)' % (id_score))).replace('(0.', '(.').replace('(-0.', '(-.')
-                    write_text(frame, text, (bbox[0], bbox[1] - 4*spacing - txt_h), fontscale, color_bg=color_id, thickness=thickness, font=font)
-                    # Get mask from RLE if exists
-                    segmentation = ann.get('segmentation', None)
-                    if segmentation is not None:
-                        apply_mask(frame, mask_utils.decode(segmentation), color_det, alpha=0.5)
+                draw_annotations(
+                    frame,
+                    frame_annotations,
+                    image_size,
+                    detection_classes=detection_classes,
+                    classification_classes=classification_classes,
+                    track_color_dict=track_color_dict,
+                    detection_color_dict=detection_color_dict,
+                    classification_color_dict=classification_color_dict,
+                    thickness=thickness,
+                    fontscale=fontscale,
+                    font=font,
+                    text_position="above"
+                )
+                if gt_annotations is not None:
+                    gt_frame_annotations = gt_annotations[idx] if idx < len(gt_annotations) else []
+                    draw_annotations(
+                        frame,
+                        gt_frame_annotations,
+                        image_size,
+                        detection_classes=detection_classes,
+                        classification_classes=classification_classes,
+                        track_color_dict=track_color_dict,
+                        detection_color_dict=detection_color_dict,
+                        classification_color_dict=classification_color_dict,
+                        thickness=thickness,
+                        fontscale=fontscale,
+                        font=font,
+                        text_position="below",
+                        text_append='GT: '
+                    )
                 # Save the annotated frame
                 cv2.imwrite(os.path.join(output_folder, '%d.png' % idx), frame)
                 # Call the display function if provided
@@ -505,6 +497,119 @@ class VideoFrameIterator:
         self.reset_video()
         self.bgr = bgr_save  # Restore original BGR setting
         return 1
+
+def draw_annotations(
+    frame, frame_annotations, image_size, detection_classes=None, classification_classes=None, track_color_dict=None,
+    detection_color_dict=None, classification_color_dict=None, thickness=2, fontscale=0.5, font=None, text_position="above",  # "above" or "below"
+    text_append=''
+):
+    """
+    Draw bounding boxes, labels, and masks on a frame.
+
+    Args:
+        frame: numpy array, the frame to draw on
+        frame_annotations: list of dicts, the annotations for the frame
+        image_size: tuple, the size of the image (height, width)
+        detection_classes: list, the detection classes (default None)
+        classification_classes: list, the classification classes (default None)
+        track_color_dict: dict, the color to use for plotting the tracks (default None)
+        detection_color_dict: dict, the color to use for plotting the detections (default None)
+        classification_color_dict: dict, the color to use for plotting the classifications (default None)
+        thickness: int, the thickness of the bounding box lines (default 2)
+        fontscale: float, the scale of the font (default 0.5)
+        font: int, the font to use for the text (default None, which uses cv2.FONT_HERSHEY_SIMPLEX)
+        text_position: str, the position of the text relative to the bounding box ("above" or "below", default "above")
+        text_append: str, text to append before the detection label (default '')
+
+    Returns:
+        numpy array: the frame with the annotations drawn on it
+    """
+
+    for ann in frame_annotations:
+        bbox = get_bbox(
+            ann["bbox"],
+            bbox_format=ann.get("bbox_format", "xywh"),
+            bbox_normalized=ann.get("bbox_normalized", True),
+            image_size=image_size,
+        )
+
+        track_id = ann.get("track_id")
+        det = detection_classes[ann["det_id"]] if detection_classes else ann["det_id"]
+        det_score = ann.get("det_score")
+        class_id = classification_classes[ann["category_id"]] if classification_classes else ann["category_id"]
+        id_score = ann.get("score")
+
+        # COLORS
+        if track_color_dict and track_id:
+            color_det = track_color_dict[track_id]
+        elif detection_color_dict:
+            color_det = detection_color_dict[det]
+        else:
+            color_det = (255, 0, 0)
+        if classification_color_dict:
+            color_id = classification_color_dict[class_id]
+        else:
+            color_id = (255, 0, 0)
+        color_bbox = color_id if len(classification_color_dict or {}) > 1 else color_det
+
+        # DRAW BBOX
+        cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_bbox, thickness)
+        spacing = int(thickness * 1.5)
+
+        # TEXT POSITIONS
+        if text_position == "above":
+            base_y = bbox[1] - spacing
+            class_y = bbox[1] - 4 * spacing
+        elif text_position == "below":
+            base_y = bbox[3] + spacing
+            class_y = bbox[3] + 4 * spacing
+        else:
+            raise ValueError("text_position must be 'above' or 'below'")
+
+        # DET TEXT
+        text = (
+            text_append
+            + ("" if det is None else f"{det} ")
+            + ("" if det_score is None else f"({det_score:.2g}) ")
+            + (
+                ""
+                if track_id is None or "Track " in str(det)
+                else f"Track {track_id}"
+            )
+        ).replace("(0.", "(.").replace("(-0.", "(-.")
+
+        txt_w, txt_h = write_text(
+            frame,
+            text,
+            (bbox[0], base_y),
+            fontscale,
+            color_bg=color_det,
+            thickness=thickness,
+            font=font,
+        )
+
+        # CLASS TEXT
+        text = (
+            ("" if class_id is None else f"{class_id} ")
+            + ("" if id_score is None else f"({id_score:.2g})")
+        ).replace("(0.", "(.").replace("(-0.", "(-.")
+
+        write_text(
+            frame,
+            text,
+            (bbox[0], class_y - txt_h if text_position == "above" else class_y + txt_h),
+            fontscale,
+            color_bg=color_id,
+            thickness=thickness,
+            font=font,
+        )
+
+        # MASK
+        segmentation = ann.get("segmentation", None)
+        if segmentation is not None:
+            apply_mask(frame, mask_utils.decode(segmentation), color_bbox, alpha=0.5)
+
+    return frame
 
 def apply_mask(frame, mask, color, alpha=0.5):
     '''
@@ -625,6 +730,8 @@ def get_colormap_dict(classes, colormap=cv2.COLORMAP_VIRIDIS, cycle_size=None):
     Returns:
         dict: the color dictionary for the given classes
     '''
+    if classes is None or len(classes) == 0:
+        return {}
     if cycle_size is None:
         cycle_size = len(classes)
     cycle_size = min(cycle_size, len(classes))

@@ -689,6 +689,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             classification_classes=class_dict.get('classification_classes'),
             n_tracks=tracking_dict.get('n_tracks', None),
             del_imgs=args.del_imgs,
+            gt_annotations=coco_to_perso_format(gt_dict_coco_class) if args.eval_classification and gt_file_class_mot else None,
             log=log
         )
         if check_stop(log=log): return 0
@@ -710,7 +711,7 @@ def main_loop(args, log=None):
     prompts = ['a baboon']  # for testing
     tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
     tracker_types = ['sam3']  # for testing
-    gt_files_name = ['frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
+    gt_files_name = ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
     for det_model in det_models:
         args.det_model = det_model
         for tracker_type in tracker_types:
