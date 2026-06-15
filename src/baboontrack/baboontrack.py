@@ -25,9 +25,11 @@ from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
-from .bt_utils.eval_utils import evaluate_detection, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format, save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts
+from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
+    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
-from .bt_utils.classifier import load_model_and_transform, extract_feature, build_feature_dict, build_image_paths_dict, get_class_scores, resolve_class_assignments
+from .bt_utils.classifier import load_model_and_transform, extract_feature, build_feature_dict, build_image_paths_dict,\
+    get_class_scores, resolve_class_assignments
 
 # Help variables
 from .help import *
@@ -525,7 +527,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     # Load ground truth if evaluation is enabled
     if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:
         # With class ID being the track id but also the det ID
-        boundaries = [int(x) for x in os.path.basename(gt_file_class_mot).split('-')[1:3]]
+        boundaries = extract_boundaries(gt_file_class_mot)
         gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
@@ -562,10 +564,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         eval_results = evaluate_detection(
             gt_det_coco_file,
             det_coco_file,
-            name='%s%s' % (det_model_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_model_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             save_path=os.path.join(args.output, 'det_eval.csv'),
             extra_info={
-                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
         )
@@ -610,10 +612,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         eval_results = evaluate_tracking(
             gt_track_mot_folder,
             track_mot_file,
-            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             save_path=os.path.join(args.output, 'track_eval.csv'),
             extra_info={
-                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
         )
@@ -651,9 +653,9 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             gt_class_coco_file,
             class_coco_file,
             save_path=os.path.join(args.output, 'class_eval.csv'),
-            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for x in boundaries)) if boundaries else ""),
+            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             extra_info={
-                "video_length": len(my_video) if boundaries is None else boundaries[1]-boundaries[0],
+                "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
         )

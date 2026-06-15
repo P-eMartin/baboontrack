@@ -10,10 +10,44 @@ if not hasattr(np, "asfarray"):
 import csv
 import os
 import copy
+import re
 from .io_utils import print_and_log, save_json_file, get_value_with_precision, save_dict_as_csv, zip_folder
 from collections import defaultdict
 import zipfile
 from .bot_sort.tracking_utils.evaluation import Evaluator
+
+'''
+Helper
+'''
+def extract_boundaries(filename):
+    """
+    Extract frame boundaries from filenames like:
+    - frame-1-546-1639-2000-mot
+    - frame-1-546-mot.zip
+    - frames.zip
+
+    Returns:
+        list of (start, end) tuples or None
+    """
+
+    base = os.path.basename(filename)
+    base = base.replace(".zip", "")
+
+    # Extract all integers in order
+    nums = list(map(int, re.findall(r"\d+", base)))
+
+    # If no numbers → no boundaries
+    if not nums:
+        return None
+
+    # Must be even number of values to form pairs
+    if len(nums) % 2 != 0:
+        raise ValueError(f"Odd number of boundary values found in: {filename}")
+
+    # Pair them
+    boundaries = [(nums[i], nums[i + 1]) for i in range(0, len(nums), 2)]
+
+    return boundaries
 
 '''
 Saving formats
@@ -84,7 +118,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
         output_path: str, the path to save the output file
         image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
         labels: list of str, the list of labels to save in a separate file (default None)
-        boundaries: list of int, the boundaries of the frames to save (default None)
+        boundaries: list of tuple of int, the boundaries of the frames to save (default None)
         frame_id_offset: int, the offset to add to the frame IDs (default 0, no offset)
 
     Returns:
@@ -95,7 +129,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
     # Loop over the detection_dict and fill the COCO format dictionary
     for idx, dets_or_key in enumerate(detection_dict):
         if isinstance(dets_or_key, list): # Case when dets_or_key is a list of detections
-            if boundaries and not (boundaries[0] <= idx <= boundaries[1]):
+            if boundaries and not (any(start <= idx <= end for start, end in boundaries)):
                 continue
             for det in dets_or_key:
                 coco_list.append({
@@ -116,7 +150,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
             det = dets_or_key
-            if boundaries and not (boundaries[0] <= det['image_id']-1 <= boundaries[1]):
+            if boundaries and not (any(start <= det['image_id']-1 <= end for start, end in boundaries)):
                 continue
             coco_list.append({
                 'image_id': det['image_id'] + frame_id_offset,
@@ -153,7 +187,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
         output_path: str, the path to save the output files
         image_size: list of int, the size of the image in the format [width, height] (default None, if None, the bbox coordinates are not normalized)
         labels: list of str, the list of labels to save in a separate file (default None)
-        boundaries: list of int, the boundaries of the frames to save (default None)
+        boundaries: list of tuple of int, the boundaries of the frames to save (default None)
         cat_id_override: int, the category ID to use as override for all annotations (default None, if None, the provided category ID is used)
         frame_id_offset: int, the offset to add to the frame IDs (default 1, to start from 1 instead of 0)
 
@@ -178,7 +212,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
     # Loop over the detection_dict and fill the MOT format dictionary
     for idx, dets_or_key in enumerate(detection_dict):
         if isinstance(dets_or_key, list): # Case when dets_or_key is a list of detections
-            if boundaries and not (boundaries[0] <= idx <= boundaries[1]):
+            if boundaries and not (any(start <= idx <= end for start, end in boundaries)):
                 continue
             for det in dets_or_key:
                 mot_dict['frame_id'].append(idx+frame_id_offset)
@@ -192,7 +226,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['visibility'].append(det.get('visibility', 1))
                 mot_dict['skipped'].append(0)
         elif isinstance(detection_dict, dict): # Case when detection_dict is a dictionary with dets_or_key being the key.
-            if boundaries and not (boundaries[0] <= int(dets_or_key)-1 <= boundaries[1]):
+            if boundaries and not (any(start <= int(dets_or_key)-1 <= end for start, end in boundaries)):
                 continue
             dets = detection_dict[dets_or_key]
             for det in dets:
@@ -208,7 +242,7 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 mot_dict['skipped'].append(det.get('skipped', 0))
         else: # Case when detection_dict is a list of dictionaries (in COCO format)
             det = dets_or_key
-            if boundaries and not (boundaries[0] <= det['image_id']-1 <= boundaries[1]):
+            if boundaries and not (any(start <= det['image_id']-1 <= end for start, end in boundaries)):
                 continue
             mot_dict['frame_id'].append(det['image_id'] + frame_id_offset -1)
             mot_dict['track_id'].append(det['track_id'])
@@ -236,7 +270,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
 
     Args:
         input_file: str, the path to the input file (can be a zip file, a folder containing gt/gt.txt, or a gt.txt file)
-        boundaries: tuple of int, the start and end frame IDs to load (default None, if None, all frames are loaded
+        boundaries: list of tuple of int, the start and end frame IDs to load (default None, if None, all frames are loaded)
         log: logging.Logger, the logger to log the information (default None)
 
     Returns:
@@ -291,11 +325,10 @@ def load_mot_format(input_file, boundaries=None, log=None):
         )
 
     if boundaries is not None:
-        start, end = boundaries
         detection_dict = {
             frame_id: dets
             for frame_id, dets in detection_dict.items()
-            if start <= frame_id-1 <= end
+            if any(start <= frame_id-1 <= end for start, end in boundaries)
         }
 
     return detection_dict, labels
