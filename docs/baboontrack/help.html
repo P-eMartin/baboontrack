@@ -43,7 +43,7 @@
                     <a class="variable" href="#helptext_max_res">helptext_max_res</a>
             </li>
             <li>
-                    <a class="variable" href="#helptext_det_score">helptext_det_score</a>
+                    <a class="variable" href="#helptext_det_score_th">helptext_det_score_th</a>
             </li>
             <li>
                     <a class="variable" href="#helptext_del_imgs">helptext_del_imgs</a>
@@ -77,6 +77,9 @@
             </li>
             <li>
                     <a class="variable" href="#helptext_loop">helptext_loop</a>
+            </li>
+            <li>
+                    <a class="variable" href="#helptext_class_database">helptext_class_database</a>
             </li>
     </ul>
 
@@ -117,8 +120,8 @@
 </span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a><span class="s1">A higher resolution will increase the computation time.</span>
 </span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a>
-</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a><span class="n">helptext_det_score</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Baboon detection threshold. Default: 0 to consider all detected Baboons. Max: 1.</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a><span class="s1">The higher the value, the more likely the detected Baboons will be correct.</span>
+</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a><span class="n">helptext_det_score_th</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Detection threshold. Default: 0 to consider all detections. Max: 1.</span>
+</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a><span class="s1">The higher the value, the more likely the detectons will be correct.</span>
 </span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>
 </span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a><span class="n">helptext_del_imgs</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Remove the images created for the video.</span>
@@ -172,6 +175,11 @@
 </span><span id="L-71"><a href="#L-71"><span class="linenos">71</span></a>
 </span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
 </span><span id="L-73"><a href="#L-73"><span class="linenos">73</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-74"><a href="#L-74"><span class="linenos">74</span></a>
+</span><span id="L-75"><a href="#L-75"><span class="linenos">75</span></a><span class="n">helptext_class_database</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Path to the classification dictionary. Default: &quot;/shared/group_dict&quot;.</span>
+</span><span id="L-76"><a href="#L-76"><span class="linenos">76</span></a><span class="s1">The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.</span>
+</span><span id="L-77"><a href="#L-77"><span class="linenos">77</span></a><span class="s1">The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.</span>
+</span><span id="L-78"><a href="#L-78"><span class="linenos">78</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span></pre></div>
 
 
@@ -228,15 +236,15 @@
     
 
                 </section>
-                <section id="helptext_det_score">
+                <section id="helptext_det_score_th">
                     <div class="attr variable">
-            <span class="name">helptext_det_score</span>        =
-<input id="helptext_det_score-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="helptext_det_score-view-value"></label><span class="default_value">&#39;Baboon detection threshold. Default: 0 to consider all detected Baboons. Max: 1.\nThe higher the value, the more likely the detected Baboons will be correct.\n&#39;</span>
+            <span class="name">helptext_det_score_th</span>        =
+<input id="helptext_det_score_th-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_det_score_th-view-value"></label><span class="default_value">&#39;Detection threshold. Default: 0 to consider all detections. Max: 1.\nThe higher the value, the more likely the detectons will be correct.\n&#39;</span>
 
         
     </div>
-    <a class="headerlink" href="#helptext_det_score"></a>
+    <a class="headerlink" href="#helptext_det_score_th"></a>
     
     
 
@@ -376,6 +384,19 @@
         
     </div>
     <a class="headerlink" href="#helptext_loop"></a>
+    
+    
+
+                </section>
+                <section id="helptext_class_database">
+                    <div class="attr variable">
+            <span class="name">helptext_class_database</span>        =
+<input id="helptext_class_database-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_class_database-view-value"></label><span class="default_value">&#39;Path to the classification dictionary. Default: &#34;/shared/group_dict&#34;.\nThe classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.\nThe classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.\n&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#helptext_class_database"></a>
     
     
 
