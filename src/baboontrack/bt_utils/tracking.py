@@ -217,7 +217,7 @@ def init_tracker(max_cosine_distance=0.5, nn_budget=None, max_iou_distance=0.7, 
     tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
     return tracker
 
-def update_tracker(tracker, frame, feat_model, det_list):
+def update_tracker(tracker, frame, feat_model, det_list, default_cat_id=1):
     '''
     Update the tracker with a new detection
     
@@ -226,13 +226,14 @@ def update_tracker(tracker, frame, feat_model, det_list):
         frame: np.array, the current video frame
         feat_model: ReIDModel, the feature extraction model with .model and .transform attributes
         det_list: list, a list of detection dictionaries, each containing a 'bbox' key with a bounding box in (x, y, w, h) format in percentage of the frame size
-        
+        default_cat_id: int, the default category ID for detections (default 1)
     Returns:
         current_tracks: list, the updated tracks
         max_track_id: int, the maximum track ID
     '''
     image_size = frame.shape[1], frame.shape[0]
     bboxes = []
+    scores = []
     # Convert the bounding boxes from percentage to pixel coordinates
     for det in det_list:
         x, y, w, h = det['bbox']
@@ -240,9 +241,10 @@ def update_tracker(tracker, frame, feat_model, det_list):
         y = int(y * image_size[1])
         w = int(w * image_size[0])
         h = int(h * image_size[1])
+        scores.append(det.get('score', 1.0))
         bboxes.append((x, y, w, h))
     features = feat_model.extract_features(frame, bboxes)
-    detections = [Detection(bbox, 1.0, feat) for bbox, feat in zip(bboxes, features)]
+    detections = [Detection(bbox, score, feat) for bbox, score, feat in zip(bboxes, scores, features)]
     tracker.predict()
     tracker.update(detections)
 
@@ -257,6 +259,8 @@ def update_tracker(tracker, frame, feat_model, det_list):
         # Back to percentage coordinates
         current_tracks.append({
             'track_id': track.track_id,
-            'bbox': [float(x/image_size[0]), float(y/image_size[1]), float(w/image_size[0]), float(h/image_size[1])]
+            'bbox': [float(x/image_size[0]), float(y/image_size[1]), float(w/image_size[0]), float(h/image_size[1])],
+            'score': float(track.score) if hasattr(track, 'score') else 1.0,
+            'category_id': default_cat_id
         })
     return current_tracks, max_track_id

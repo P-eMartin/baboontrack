@@ -18,7 +18,7 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
 
-def save_json_file(variable, json_file, cls=NpEncoder):
+def save_json_file(variable, json_file, cls=NpEncoder, pretty=False):
     '''
     Save json files with a customized encoder.
 
@@ -26,12 +26,13 @@ def save_json_file(variable, json_file, cls=NpEncoder):
         variable: variable, the variable to save in the json file
         json_file: str, path to the json file
         cls: class, the class to use for the encoder (default NpEncoder)
+        pretty: bool, if True, save the json file with indentation (default False)
 
     Returns:
         int, 1 if the file was properly saved
     '''
     with open(json_file, 'w') as f:
-        json.dump(variable, f, cls=cls)
+        json.dump(variable, f, cls=cls, indent=2 if pretty else None)
     return 1
 
 def load_json_file(json_file, str_ok=False):

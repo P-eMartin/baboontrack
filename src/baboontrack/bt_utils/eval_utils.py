@@ -474,14 +474,14 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
         list of dict, the list of detections with resolved ID conflicts
     '''
     detections = copy.deepcopy(_detections) # To avoid modifying the original detections
-    name_to_id_output = {label.lower(): idx for idx, label in enumerate(labels_output)}
+    name_to_id_output = {label.lower(): idx+1 for idx, label in enumerate(labels_output)}
     nb_id_conflict = 0
     total_detections = 0
     for det in detections:
         if isinstance(det, dict):
             total_detections += 1
             id_input = det['category_id']
-            name = labels_input[id_input].lower()
+            name = labels_input[id_input-1].lower()
             if name in name_to_id_output:
                 det['category_id'] = name_to_id_output[name]
             else:
@@ -491,7 +491,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
             for _det in det:
                 total_detections += 1
                 id_input = _det['category_id']
-                name = labels_input[id_input].lower()
+                name = labels_input[id_input-1].lower()
                 if name in name_to_id_output:
                     _det['category_id'] = name_to_id_output[name]
                 else:

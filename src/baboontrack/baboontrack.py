@@ -252,10 +252,10 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     # Saving
     output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size, 'n_tracks': track_id}
     save_json_file(output_results, output_file)
-        
+    save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
-def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score_th=0.5, tracker_type=None, image_size=None, log=None):
+def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score_th=0.5, tracker_type=None, image_size=None, default_cat_id=1, log=None):
     '''
     Track the Baboons in the video using the detection results.
 
@@ -268,6 +268,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         score_th: float, score threshold for detections to be considered for tracking (default 0.5)
         tracker_type: str, the type of tracker to use (default None)
         image_size: tuple, the size of the image (width, height)
+        default_class_id: int, the default class ID to assign to detections (default 1)
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -358,11 +359,12 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
                 tmp['bbox'] = [float(x1 / image_size[0]), float(y1 / image_size[1]), float(w / image_size[0]), float(h / image_size[1])]
                 tmp['track_id'] = track.track_id
                 tmp['score'] = float(track.score)
+                tmp['category_id'] = default_cat_id
                 n_tracks = max(n_tracks, track.track_id)
                 current_tracks.append(tmp)
             all_tracks.append(current_tracks)
         elif tracker_type == "deepsort":
-            current_tracks, max_track_id = update_tracker(tracker, frame, feat_model, det_result)
+            current_tracks, max_track_id = update_tracker(tracker, frame, feat_model, det_result, default_cat_id=default_cat_id)
             n_tracks = max(n_tracks, max_track_id)
             all_tracks.append(current_tracks)
         elif tracker_type == "IoU":
@@ -384,6 +386,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     if 'detection_classes' in detection_dict:
         output_results['detection_classes'] = detection_dict['detection_classes']
     save_json_file(output_results, output_file)
+    save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
 def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu', log=None):
@@ -441,49 +444,52 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                 start_loop = time.time()
             elapsed_time = time.time() - start_loop
             progress_bar(
-                track_id,
+                idx,
                 len(track_dict),
                 'Classifying tracks.%s' % ('(%ds left)' % (elapsed_time/idx*(len(track_dict)-idx)) if idx > 0 else '')
             )
             features = []
             idxs = []
             for det in track_dets:
-                idx = det['image_id']-1  # image_id starts at 1 in coco format
-                idxs.append(idx)
-                img = my_video.get_frame_at_idx(idx)
+                frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
+                idxs.append(frame_idx)
+                img = my_video.get_frame_at_idx(frame_idx)
                 x, y, w, h = det['bbox']
-                img_cropped = img[int(y*img.shape[0]):int((y+h)*img.shape[0]), int(x*img.shape[1]):int((x+w)*img.shape[1])]
+                img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
                 feature = extract_feature(model, transform, img_cropped)
                 features.append(feature)
             track_class_dict[track_id] = {
                 'scores': get_class_scores(features, feature_database),
                 'idxs': idxs
             }
-        progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_time), log=log, completed=True)
+        progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
         # Save the intermediate results with the scores before resolving the final class assignments to avoid losing information in case of crash and for debugging purposes
-        save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, score_file)
+        # save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, score_file)
+        # save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, score_file.replace('.json', '.pretty.json'), pretty=True) 
 
     ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
     final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
 
     ## Step 4: Save the results in in class_dict
-    class_to_idx = {cls_name: idx for idx, cls_name in enumerate(classes)}
-
+    class_to_idx = {cls_name: idx+1 for idx, cls_name in enumerate(classes)}
+    track_ids = []
     for dets_per_frame in class_dict['detections']:
         for det in dets_per_frame:
             track_id = det['track_id']
             assigned_class, assigned_score = final_assignments.get(track_id,("NoID", 0.0))
-            n_tracks = max(n_tracks, track_id)
+            track_ids.append(track_id)
             # Save initial detection 
             det['det_id'] = det.get('category_id', 1)
             det['det_score'] = det.get('score')
             # Reassign the class and score based on the classification results
             det['category_id'] = class_to_idx[assigned_class]
             det['score'] = assigned_score
+    n_tracks = len(set(track_ids))
     # Saving
     # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
     save_json_file(class_dict, output_file)
+    save_json_file(class_dict, output_file.replace('.json', '.pretty.json'), pretty=True)
     print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
 
     return class_dict
@@ -559,6 +565,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         # Save detection and gt as coco format for evaluation
         gt_det_coco_file = os.path.join(args.output, 'gt_det_coco_format.json')
         save_json_file(gt_dict_coco_det, gt_det_coco_file)
+        save_json_file(gt_dict_coco_det, gt_det_coco_file.replace('.json', '.pretty.json'), pretty=True)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
             os.path.join(args.output, 'det_coco_format_%s' % det_model_str),
@@ -590,6 +597,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         score_th=args.det_score_th,
         tracker_type=None if args.tracker_type == 'IoU' and 'sam3' not in args.det_model else args.tracker_type,
         image_size=image_size,
+        default_cat_id=1,
         log=log
     )
 
@@ -645,6 +653,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=gt_labels)
         gt_class_coco_file = os.path.join(args.output, 'gt_class_coco_format.json')
         save_json_file(gt_dict_coco_class, gt_class_coco_file)
+        save_json_file(gt_dict_coco_class, gt_class_coco_file.replace('.json', '.pretty.json'), pretty=True)
         gt_classes = [cat['name'] for cat in gt_dict_coco_class['categories']]
         # gt_class_coco_file = save_coco_format(gt_dict_coco_class['annotations'], os.path.join(args.output, 'gt_class_coco_format'), labels=gt_labels)
         uniform_class_list = solve_id_conflicts(class_dict['detections'], classes, gt_labels, default_label='NoID', log=log)

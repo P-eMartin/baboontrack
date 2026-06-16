@@ -143,6 +143,7 @@ class Track:
         self.time_since_update = 0
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
+        self.conf = detection.conf if hasattr(detection, 'conf') else 1.0
 
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).

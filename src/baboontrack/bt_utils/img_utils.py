@@ -406,7 +406,7 @@ class VideoFrameIterator:
 
         # Check if the number of images in the folder is the same as the video length
         if len(os.listdir(output_folder)) != self.length:
-            print_and_log("Plotting annotations on video %s..." % (self.path), log=log)
+            print_and_log("Making %s..." % (output_path), log=log)
             start_time = time.time()
             # Loop over the video frames and plot the annotations
             for idx, frame in enumerate(self):
@@ -536,10 +536,10 @@ def draw_annotations(
 
         track_id = ann.get("track_id")
         det_id = ann.get("det_id")
-        if det_id and detection_classes:
-            det_id = detection_classes[max(0, det_id-1)]  # Convert to 0-based index for detection_classes
+        if det_id is not None and detection_classes:
+            det_id = detection_classes[det_id-1]  # Convert to 0-based index for detection_classes
         det_score = ann.get("det_score")
-        class_id = classification_classes[ann["category_id"]] if classification_classes else ann["category_id"]
+        class_id = classification_classes[ann["category_id"]-1] if classification_classes else ann["category_id"]
         id_score = ann.get("score")
 
         # COLORS
