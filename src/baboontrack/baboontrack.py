@@ -412,28 +412,20 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
-    ## Classification names
-    if class_database:
-        classes = sorted(os.listdir(class_database))
-        img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-    else:
-        classes = []
-        img_path_dict = {}
-    classes.append('NoID')
-    n_tracks = 0
-    model, transform = load_model_and_transform(device=device)
-    feature_database = build_feature_dict(model, transform, img_path_dict)
 
     ## Check if detection_dict is filepath or dict
     detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
     class_dict = copy.deepcopy(detection_dict)
+    classes = ['NoID']
 
-    ## Check if Steps 1 and 2 are already done
-    score_file = output_file.replace('.json', '_with_scores.json')
-    if os.path.exists(score_file):
-        print_and_log('Score file %s already exists. Loading existing file with scores.' % (score_file), log=log)
-        track_class_dict = load_json_file(score_file)['track_class_dict']
-    else:
+    ## Classification routine
+    if class_database:
+        classes += sorted(os.listdir(class_database))
+        img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
+        n_tracks = 0
+        model, transform = load_model_and_transform(device=device)
+        feature_database = build_feature_dict(model, transform, img_path_dict)
+
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
 
@@ -463,12 +455,12 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                 'idxs': idxs
             }
         progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
-        # Save the intermediate results with the scores before resolving the final class assignments to avoid losing information in case of crash and for debugging purposes
-        # save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, score_file)
-        # save_json_file({'track_class_dict': track_class_dict, 'class_database': classes}, score_file.replace('.json', '.pretty.json'), pretty=True) 
 
-    ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
-    final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
+        ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks using while. If no score is above the threshold, assign "NoID" class.
+        final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
+    else:
+        print_and_log('No classification dictionary provided. Assigning "NoID" class to all tracks.', log=log)
+        final_assignments = {}
 
     ## Step 4: Save the results in in class_dict
     class_to_idx = {cls_name: idx+1 for idx, cls_name in enumerate(classes)}
@@ -488,6 +480,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     # Saving
     # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
+    class_dict['n_tracks'] = n_tracks
     save_json_file(class_dict, output_file)
     save_json_file(class_dict, output_file.replace('.json', '.pretty.json'), pretty=True)
     print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
@@ -702,7 +695,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
             classification_classes=class_dict.get('classification_classes'),
-            n_tracks=tracking_dict.get('n_tracks', 0),
+            n_tracks=class_dict.get('n_tracks', 0),
             del_imgs=args.del_imgs,
             gt_annotations=coco_to_perso_format(gt_dict_coco_class['annotations'], image_size=image_size) if args.eval_classification and gt_file_class_mot else None,
             gt_classes=gt_classes if args.eval_classification and gt_file_class_mot else None,
