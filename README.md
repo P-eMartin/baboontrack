@@ -53,14 +53,21 @@ pip install .\dist\baboontrack-0.0.1-py3-none-any.whl
 
 ### SAM3
 
-The SAM3 model requires ~5 GB of GPU memory in addition to runtime memory for image processing. On GPUs with less than ~10 GB VRAM, CUDA execution may become impossible.
+SAM 3 can be used for both detection/segmentation and tracking, and is more flexible than traditional detection approaches, since it can operate from simple prompts to identify and segment objects.
+
+However, SAM 3 and OpenMM rely on different PyTorch versions and therefore do not coexist easily within the same environment. We recommend following the official installation instructions provided here:
+
+[https://github.com/facebookresearch/sam3](https://github.com/facebookresearch/sam3)
+
+Our implementation uses the dedicated Conda environment called `sam3` created via their instruction, to launch our SAM3-based implementation to process chunks of videos and ensure compatibility with the rest of the pipeline.
+
+Furthermore, SAM3 model requires ~5 GB of GPU memory in addition to runtime memory for image processing. On GPUs with less than ~10 GB VRAM, CUDA execution may become impossible.
 
 #### Memory estimate (approx.)
 
 ```text
 total_memory ≈ 5 GB + (num_pixels / 100,000,000) × chunk_size
 ```
-
 
 #### Chunk size estimation
 
@@ -72,7 +79,6 @@ chunk_size ≈ (available_memory_GB − 5) × 100,000,000 / num_pixels
 
 * ~200 MP image → ~15 GB + 5 GB ≈ 20 GB total
 * ~50 MP image → ~3.75 GB + 5 GB ≈ 8.75 GB total
-
 
 ### OpenMMLab (required for PrimateFace)
 

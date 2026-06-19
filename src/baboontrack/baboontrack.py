@@ -526,7 +526,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     my_video = VideoFrameIterator(args.input_video, log=log)
     image_size = my_video.get_image_size()
     print_and_log('Video %s opened with resolution %s and %d frames.' % (args.input_video, str(image_size), len(my_video)), log=log)
-    # my_video.check_video()
+    my_video.check_video()
 
     # Load ground truth if evaluation is enabled
     if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:

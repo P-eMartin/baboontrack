@@ -8,7 +8,6 @@ import pdb
 from pycocotools import mask as mask_utils # type: ignore
 try:
     from json_utils import save_json_file, save_dict_to_txt
-    # sys.path.append(os.path.dirname(__file__))  # Add sam3 directory to the system path to import sam3
     from sam3.model_builder import build_sam3_video_predictor # type: ignore
 except ImportError:
     print("Could not import sam3. Please make sure you have installed the requirements for sam3 and that the sam3 directory is in the same directory as this script.")
