@@ -76,6 +76,12 @@
                     <a class="variable" href="#helptext_text_prompt">helptext_text_prompt</a>
             </li>
             <li>
+                    <a class="variable" href="#helptext_chunk_size">helptext_chunk_size</a>
+            </li>
+            <li>
+                    <a class="variable" href="#helptext_overlap">helptext_overlap</a>
+            </li>
+            <li>
                     <a class="variable" href="#helptext_loop">helptext_loop</a>
             </li>
             <li>
@@ -173,13 +179,23 @@
 </span><span id="L-69"><a href="#L-69"><span class="linenos">69</span></a><span class="s1">This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.</span>
 </span><span id="L-70"><a href="#L-70"><span class="linenos">70</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span><span id="L-71"><a href="#L-71"><span class="linenos">71</span></a>
-</span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos">73</span></a><span class="s1">&#39;&#39;&#39;</span>
-</span><span id="L-74"><a href="#L-74"><span class="linenos">74</span></a>
-</span><span id="L-75"><a href="#L-75"><span class="linenos">75</span></a><span class="n">helptext_class_database</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Path to the classification dictionary. Default: &quot;/shared/group_dict&quot;.</span>
-</span><span id="L-76"><a href="#L-76"><span class="linenos">76</span></a><span class="s1">The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos">77</span></a><span class="s1">The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.</span>
-</span><span id="L-78"><a href="#L-78"><span class="linenos">78</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a><span class="n">helptext_chunk_size</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Chunk size for processing the video in segments with SAM3. Default: 200.</span>
+</span><span id="L-73"><a href="#L-73"><span class="linenos">73</span></a><span class="s1">TODO: Provide equation to take into account resolution, number of instances and gpu size.</span>
+</span><span id="L-74"><a href="#L-74"><span class="linenos">74</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-75"><a href="#L-75"><span class="linenos">75</span></a>
+</span><span id="L-76"><a href="#L-76"><span class="linenos">76</span></a><span class="n">helptext_overlap</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Overlap size for processing the video in segments with SAM3. Default: 5.</span>
+</span><span id="L-77"><a href="#L-77"><span class="linenos">77</span></a><span class="s1">The overlap size determines how many frames will be shared between consecutive chunks of the video.</span>
+</span><span id="L-78"><a href="#L-78"><span class="linenos">78</span></a><span class="s1">This can help maintain tracking continuity across chunk boundaries, especially in cases where Baboons may move in and out of the frame.</span>
+</span><span id="L-79"><a href="#L-79"><span class="linenos">79</span></a><span class="s1">A larger overlap may improve tracking accuracy but will increase processing time.</span>
+</span><span id="L-80"><a href="#L-80"><span class="linenos">80</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-81"><a href="#L-81"><span class="linenos">81</span></a>
+</span><span id="L-82"><a href="#L-82"><span class="linenos">82</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
+</span><span id="L-83"><a href="#L-83"><span class="linenos">83</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-84"><a href="#L-84"><span class="linenos">84</span></a>
+</span><span id="L-85"><a href="#L-85"><span class="linenos">85</span></a><span class="n">helptext_class_database</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Path to the classification dictionary. Default: &quot;/shared/group_dict&quot;.</span>
+</span><span id="L-86"><a href="#L-86"><span class="linenos">86</span></a><span class="s1">The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.</span>
+</span><span id="L-87"><a href="#L-87"><span class="linenos">87</span></a><span class="s1">The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.</span>
+</span><span id="L-88"><a href="#L-88"><span class="linenos">88</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span></pre></div>
 
 
@@ -371,6 +387,32 @@
         
     </div>
     <a class="headerlink" href="#helptext_text_prompt"></a>
+    
+    
+
+                </section>
+                <section id="helptext_chunk_size">
+                    <div class="attr variable">
+            <span class="name">helptext_chunk_size</span>        =
+<input id="helptext_chunk_size-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_chunk_size-view-value"></label><span class="default_value">&#39;Chunk size for processing the video in segments with SAM3. Default: 200.\nTODO: Provide equation to take into account resolution, number of instances and gpu size.\n&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#helptext_chunk_size"></a>
+    
+    
+
+                </section>
+                <section id="helptext_overlap">
+                    <div class="attr variable">
+            <span class="name">helptext_overlap</span>        =
+<input id="helptext_overlap-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_overlap-view-value"></label><span class="default_value">&#39;Overlap size for processing the video in segments with SAM3. Default: 5.\nThe overlap size determines how many frames will be shared between consecutive chunks of the video.\nThis can help maintain tracking continuity across chunk boundaries, especially in cases where Baboons may move in and out of the frame.\nA larger overlap may improve tracking accuracy but will increase processing time.\n&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#helptext_overlap"></a>
     
     
 
