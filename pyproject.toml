@@ -33,6 +33,7 @@ dependencies = [
     "cython-bbox>=0.1.0",
     "motmetrics>=1.2.0",
     "pycocotools>=2.0.0",
+    "torch=<2.1.0",
     "numpy<2.0.0",
     "mmcv>=1.0.0",
     "mmdet>=2.0.0",
