@@ -30,10 +30,10 @@ jobs:
     - name: Install the package
       run: |
         pip install dist/*.whl
-
-    - name: Install OpenMMLab stack
-      run: |
-        bash scripts/install_openmmlab.sh
+    ## Cannot be run because running out of memory on github actions
+    # - name: Install OpenMMLab stack
+    #   run: |
+    #     bash scripts/install_openmmlab.sh
     
     - name: Generate documentation
       run: |
