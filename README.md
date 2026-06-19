@@ -51,21 +51,34 @@ pip install dist/baboontrack-0.0.1-py3-none-any.whl
 pip install .\dist\baboontrack-0.0.1-py3-none-any.whl
 ```
 
+### SAM3
+
+The SAM3 model requires ~5 GB of GPU memory in addition to runtime memory for image processing. On GPUs with less than ~10 GB VRAM, CUDA execution may become impossible.
+
+#### Memory estimate (approx.)
+
+```text
+total_memory ≈ 5 GB + (num_pixels / 100,000,000) × chunk_size
+```
+
+
+#### Chunk size estimation
+
+```text
+chunk_size ≈ (available_memory_GB − 5) × 100,000,000 / num_pixels
+```
+
+#### Examples
+
+* ~200 MP image → ~15 GB + 5 GB ≈ 20 GB total
+* ~50 MP image → ~3.75 GB + 5 GB ≈ 8.75 GB total
+
+
 ### OpenMMLab (required for PrimateFace)
 
 PrimateFace relies on OpenMMLab ecosystem (MMCV, MMDetection, MMPose), which requires a compatible PyTorch + CUDA setup.
+They have to be installed separately and we provided a script for this purpose, which may have to be adapted according to your setup.
 
-They have to be installed separately.
-```
-pip install torch==2.1.0 torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install -U openmim
-mim install "mmcv>=2.0.0rc4, <2.2.0"
-mim install mmdet
-mim install mmpose
-pip install "numpy<2.0"
-```
-
-Or use the provided script:
 **Linux and MacOS:**
 ```
 bash scripts/install_openmmlab.sh
@@ -73,6 +86,15 @@ bash scripts/install_openmmlab.sh
 **Windows (when bash available):**
 ```
 bash scripts\install_openmmlab.sh
+```
+**Or manually:**
+```
+pip install torch==2.1.0 torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install -U openmim
+mim install "mmcv>=2.0.0rc4, <2.2.0"
+mim install mmdet
+mim install mmpose
+pip install "numpy<2.0"
 ```
 
 ### ffmpeg (facultative)

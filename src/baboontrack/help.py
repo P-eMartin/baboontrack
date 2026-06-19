@@ -69,6 +69,16 @@ helptext_text_prompt = '''Text prompt to use for SAM 3 tracking. Default: "an an
 This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.
 '''
 
+helptext_chunk_size = '''Chunk size for processing the video in segments with SAM3. Default: 200.
+TODO: Provide equation to take into account resolution, number of instances and gpu size.
+'''
+
+helptext_overlap = '''Overlap size for processing the video in segments with SAM3. Default: 5.
+The overlap size determines how many frames will be shared between consecutive chunks of the video.
+This can help maintain tracking continuity across chunk boundaries, especially in cases where Baboons may move in and out of the frame.
+A larger overlap may improve tracking accuracy but will increase processing time.
+'''
+
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
 '''
 

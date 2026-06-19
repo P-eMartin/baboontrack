@@ -169,7 +169,7 @@ def process_detections(detections, last_tracks, track_id, image_size, score, iou
     return track_id
 
 
-def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det_model='md_v5b.0.0.pt', text_prompt="an animal", log=None, display_fct=None):
+def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det_model='md_v5b.0.0.pt', text_prompt="an animal", chunk_size=200, overlap=5, log=None, display_fct=None):
     '''
     Detect the Baboons in the video using Megadetector and track them.
 
@@ -202,7 +202,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
 
     ## SAM3
     if "sam3" in det_model:
-        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=200, overlap=5, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
+        return process_video_with_sam(my_video, output_file, text_prompt=text_prompt, chunk_size=chunk_size, overlap=overlap, tmp_dir=".tmp", clean_up=False, det_only='det' in det_model, log=log)
     
     ## Megadetector
     model = run_detector.load_detector(
@@ -545,6 +545,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         tracking_size=args.tracking_size,
         det_model=args.det_model,
         text_prompt=args.text_prompt,
+        chunk_size=args.chunk_size,
+        overlap=args.overlap,
         log=log,
         display_fct=args.display_fct
     )
@@ -846,6 +848,18 @@ def get_args():
         type=str,
         default="a baboon",
         help=helptext_text_prompt
+    )
+    parser.add_argument(
+        '-k', '--chunk_size',
+        type=int,
+        default=200,
+        help=helptext_chunk_size
+    )
+    parser.add_argument(
+        '-O', '--overlap',
+        type=int,
+        default=5,
+        help=helptext_overlap
     )
     parser.add_argument(
         '-P', '--class_database',
