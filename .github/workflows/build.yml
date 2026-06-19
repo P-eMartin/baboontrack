@@ -30,6 +30,10 @@ jobs:
     - name: Install the package
       run: |
         pip install dist/*.whl
+
+    - name: Install OpenMMLab stack
+      run: |
+        bash scripts/install_openmmlab.sh
     
     - name: Generate documentation
       run: |
