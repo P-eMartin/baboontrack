@@ -446,19 +446,23 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             )
             features = []
             idxs = []
+            extra_bboxs = {}
             for det in track_dets:
                 frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
                 idxs.append(frame_idx)
                 img = my_video.get_frame_at_idx(frame_idx)
                 x, y, w, h = det['bbox']
                 img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
-                feature = my_classifier.extract_feature(img_cropped)
+                feature, extra_bbox = my_classifier.extract_feature(img_cropped)
                 if feature is None:
                     continue
                 features.append(feature)
+                if extra_bbox is not None:
+                    extra_bbox[frame_idx] = extra_bbox
             track_class_dict[track_id] = {
                 'scores': my_classifier.get_class_scores(features),
-                'idxs': idxs
+                'idxs': idxs,
+                'extra_bboxes': extra_bboxs
             }
         progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
 
@@ -482,6 +486,17 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             # Reassign the class and score based on the classification results
             det['category_id'] = class_to_idx[assigned_class]
             det['score'] = assigned_score
+            # Save the extra bbox if available
+            if 'extra_bboxes' in track_class_dict[track_id]:
+                extra_bbox = track_class_dict[track_id]['extra_bboxes'].get(det['image_id']-1)
+                if extra_bbox is not None:
+                    # Normalize the extra bbox coordinates to be in the range [0, 1] relative to the image size
+                    det['extra_bbox'] = [
+                        float(extra_bbox[0] / image_size[0]),
+                        float(extra_bbox[1] / image_size[1]),
+                        float(extra_bbox[2] / image_size[0]),
+                        float(extra_bbox[3] / image_size[1])
+                    ]
     n_tracks = len(set(track_ids))
     # Saving
     # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
@@ -976,7 +991,7 @@ def run(**kwargs):
     else:
         os.makedirs(os.path.join(args.output, 'logs'), exist_ok=True)
         log = setup_logger(log_file=os.path.join(args.output, 'logs', '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))))
-        print_and_log('Starting BaboonTrack without GUI with arguments: %s' % (args), log=log)
+        print_and_log('Starting BaboonTrack without GUI with arguments: %s' % (str(vars(args))), log=log)
         # Check if input is video or has frames. If not, loop over the folder and process each video or set of frames separately.
         if os.path.isfile(args.input_video) or (os.path.isdir(args.input_video) and any(os.path.isfile(os.path.join(args.input_video, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in os.listdir(args.input_video))):
             main_funct(args, log=log)

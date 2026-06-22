@@ -533,6 +533,12 @@ def draw_annotations(
             bbox_normalized=ann.get("bbox_normalized", True),
             image_size=image_size,
         )
+        extra_bbox = get_bbox(
+            ann.get("extra_bbox"),
+            bbox_format=ann.get("bbox_format", "xywh"),
+            bbox_normalized=ann.get("bbox_normalized", True),
+            image_size=image_size,
+        )      
 
         track_id = ann.get("track_id")
         det_id = ann.get("det_id")
@@ -555,11 +561,13 @@ def draw_annotations(
             color_id = (255, 0, 0)
         color_bbox = color_id if len(classification_color_dict or {}) > 1 else color_det
 
-        # DRAW BBOX
+        # DRAW BBOXs
         cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_bbox, thickness)
-        spacing = int(thickness * 1.5)
-
+        if extra_bbox is not None:
+            cv2.rectangle(frame, (extra_bbox[0], extra_bbox[1]), (extra_bbox[2], extra_bbox[3]), color_bbox, thickness)
+        
         # TEXT POSITIONS
+        spacing = int(thickness * 1.5)
         if text_position == "above":
             base_y = bbox[1] - spacing
             class_y = bbox[1] - 4 * spacing
@@ -660,6 +668,8 @@ def get_bbox(bbox, bbox_format='xywh', bbox_normalized=True, image_size=None):
     Returns:
         list: the bounding box coordinates in xyxy format
     '''
+    if bbox is None:
+        return None
     if bbox_format == 'xywh':
         x1 = bbox[0]
         y1 = bbox[1]

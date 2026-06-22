@@ -207,6 +207,7 @@ class MyClassifier:
 
         Returns:
             torch.Tensor, the extracted feature
+            tuple, the bounding box coordinates (x1, y1, x2, y2)
         '''
         if self.det is not None:
             image = self.read_image_cv2(img)
@@ -219,8 +220,10 @@ class MyClassifier:
             # max, min and closest integer
             x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
             image = self.read_image_pil(image[y1:y2, x1:x2])
+            bbox = (x1, y1, x2-x1, y2-y1)
         else:
             image = self.read_image_pil(img)
+            bbox = None
         # Apply the transform and add a batch dimension
         x = self.transform(image).unsqueeze(0)
         # Device
@@ -230,7 +233,7 @@ class MyClassifier:
         feat = feat.squeeze()
         # normalize
         feat = feat / feat.norm()
-        return feat
+        return feat, bbox
 
     def build_database(self, image_paths):
         '''
@@ -243,7 +246,7 @@ class MyClassifier:
         for class_id, paths in image_paths.items():
             self.database[class_id] = []
             for path in paths:
-                feature = self.extract_feature(path)
+                feature, _ = self.extract_feature(path)
                 if feature is None:
                     print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
                 else:
