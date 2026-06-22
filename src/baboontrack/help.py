@@ -74,7 +74,9 @@ You can experiment with different prompts to see how it affects the tracking per
 '''
 
 helptext_chunk_size = '''Chunk size for processing the video in segments with SAM3. Default: 200.
-TODO: Provide equation to take into account resolution, number of instances and gpu size.
+When using GPU, the entire chunk if loaded into memory.
+An estimated chunk size can be calculated based on the available GPU memory and the average memory usage per frame.
+Approximately: chunk_size ≈ (available_memory_GB − 5) × 100,000,000 / num_pixels
 '''
 
 helptext_overlap = '''Overlap size for processing the video in segments with SAM3. Default: 5.
