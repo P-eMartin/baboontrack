@@ -19,7 +19,7 @@ from .bot_sort.tracking_utils.evaluation import Evaluator
 '''
 Helper
 '''
-def extract_boundaries(filename):
+def extract_boundaries(filename, log=None):
     """
     Extract frame boundaries from filenames like:
     - frame-1-546-1639-2000-mot
@@ -42,10 +42,12 @@ def extract_boundaries(filename):
 
     # Must be even number of values to form pairs
     if len(nums) % 2 != 0:
-        raise ValueError(f"Odd number of boundary values found in: {filename}")
+        print_and_log(f"Odd number of boundary values found in: {filename}. Setting to None.", log=log)
+        return None
 
     # Pair them
     boundaries = [(nums[i], nums[i + 1]) for i in range(0, len(nums), 2)]
+    print_and_log(f"Extracted boundaries from {filename}: {boundaries}", log=log)
 
     return boundaries
 

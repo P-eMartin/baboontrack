@@ -554,7 +554,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     # Load ground truth if evaluation is enabled
     if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:
         # With class ID being the track id but also the det ID
-        boundaries = extract_boundaries(gt_file_class_mot)
+        boundaries = extract_boundaries(gt_file_class_mot, log=log)
         gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
@@ -744,7 +744,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    testing = True
+    testing = False
     if testing:
         det_models = ['sam3']
         prompts = ['a baboon']
@@ -755,7 +755,8 @@ def main_loop(args, log=None):
         prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
-    gt_files_name = ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
+    gt_files_name = [os.path.join(os.path.dirname(args.input_video), name) for name in ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']]
+    gt_files_name = ['/home/pemartin/shared/anotated_data/bungalow_08-06-35_MOT.zip']
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -772,7 +773,7 @@ def main_loop(args, log=None):
                         ' with prompt "%s"' % (prompt) if prompt else '',
                         tracker_type,
                         ' with class det %s' % (class_det) if class_det else 'without class det'), log=log)
-                    for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video.path), name) for name in gt_files_name]:
+                    for gt_file_class_mot in gt_files_name:
                         main(args, gt_file_class_mot=gt_file_class_mot, log=log)
 
 

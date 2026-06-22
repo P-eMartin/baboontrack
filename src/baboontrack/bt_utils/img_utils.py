@@ -554,7 +554,7 @@ def draw_annotations(
 
         # COLORS
         if track_color_dict and track_id:
-            color_det = track_color_dict[track_id]
+            color_det = track_color_dict[track_id%len(track_color_dict)+1]
         elif detection_color_dict and det_id:
             color_det = detection_color_dict[det_id]
         else:
