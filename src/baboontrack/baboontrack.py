@@ -388,7 +388,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
-def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu', log=None):
+def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu', class_det=None, class_det_thr=0.5, class_nms_thr=0.4, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -400,6 +400,9 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         class_threshold: float, the threshold for class assignment
         image_size: tuple, the size of the image (width, height)
         device: str, the device to use for feature extraction (default 'cpu')
+        class_det: str, the type of detector to use for classification (default None)
+        class_det_thr: float, the threshold for detection (default 0.5)
+        class_nms_thr: float, the threshold for non-maximum suppression (default 0.4)
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -424,7 +427,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
         n_tracks = 0
-        my_classifier = MyClassifier(device=device)
+        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, log=log)
         my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
@@ -641,6 +644,9 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         class_database=args.class_database,
         image_size=image_size,
         device=args.device,
+        class_det=args.class_det,
+        class_det_thr=args.class_det_thr,
+        class_nms_thr=args.class_nms_thr,
         log=log
     )
     if check_stop(log=log): return 0
@@ -719,12 +725,17 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-    # det_models = ['sam3']  # for testing
-    prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
-    # prompts = ['a baboon']  # for testing
-    tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
-    # tracker_types = ['sam3']  # for testing
+    testing = True
+    if testing:
+        det_models = ['sam3']
+        prompts = ['a baboon']
+        tracker_types = ['sam3']
+        class_det_types = ['primateface']
+    else:
+        det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
+        prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
+        tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
+        class_det_types = ['primateface', '']
     gt_files_name = ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
     for det_model in det_models:
         args.det_model = det_model
@@ -734,9 +745,15 @@ def main_loop(args, log=None):
             args.tracker_type = tracker_type
             for prompt in prompts if 'sam3' in det_model else ['']:
                 args.text_prompt = prompt
-                print_and_log('Running det %s%s and tracker %s' % (det_model, ' with prompt "%s"' % (prompt) if prompt else '', tracker_type), log=log)
-                for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video), name) for name in gt_files_name]:
-                    main(args, gt_file_class_mot=gt_file_class_mot, log=log)
+                for class_det in class_det_types:
+                    args.class_det = class_det
+                    print_and_log('Running det %s%s and tracker %s%s' % (
+                        det_model,
+                        ' with prompt "%s"' % (prompt) if prompt else '',
+                        tracker_type,
+                        ' with class det %s' % (class_det) if class_det else 'without class det'), log=log)
+                    for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video), name) for name in gt_files_name]:
+                        main(args, gt_file_class_mot=gt_file_class_mot, log=log)
 
 
 def split_or_empty(string):
@@ -869,6 +886,24 @@ def get_args():
         default=os.path.join('/shared', 'group_dict'),
         type=str,
         help=helptext_class_database
+    )
+    parser.add_argument(
+        '-Cdet', '--class_det',
+        default=None,
+        type=str,
+        help=helptext_class_det
+    )
+    parser.add_argument(
+        '-CdetThr', '--class_det_thr',
+        default=0.5,
+        type=float,
+        help=helptext_class_det_thr
+    )
+    parser.add_argument(
+        '-CnmsThr', '--class_nms_thr',
+        default=0.4,
+        type=float,
+        help=helptext_class_nms_thr
     )
     parser.add_argument(
         '-e', '--eval_detection',

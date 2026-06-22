@@ -131,7 +131,8 @@ class PrimateFaceDetector:
         return bboxes, scores
 
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector=None, det_thr=0.5, nms_thr=0.4):
+    def __init__(self, model_path='', device='cpu', detector_type=None, det_thr=0.5, nms_thr=0.4, log=None):
+        self.log = log
         # Load the model
         # model = torch.load(model_path, map_location=device)
         self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
@@ -148,14 +149,17 @@ class MyClassifier:
                 std=[0.229, 0.224, 0.225]
             ),
         ])
-        if detector is None:
+        if not detector_type:
             self.det = None
-        else:
+        elif detector_type == 'primateface':
             self.det = PrimateFaceDetector(
                 device=device,
                 det_thr=det_thr,
                 nms_thr=nms_thr
             )
+        else:
+            print_and_log(f"Warning: Detector type {detector_type} not recognized. No detector will be used with the classifier.", log=self.log)
+            self.det = None
         return self
     
     def read_image_cv2(self, img):
@@ -228,15 +232,12 @@ class MyClassifier:
         feat = feat / feat.norm()
         return feat
 
-    def build_database(self, image_paths, log=None):
+    def build_database(self, image_paths):
         '''
         Build a dictionary of features for a list of image paths.
         
         Args:
-            model: torch.nn.Module, the model to use for feature extraction
-            transform: torchvision.transforms, the transform to apply to the images
             image_paths: dict, a dictionary of list of image paths, with the keys being the IDs of the images (e.g. track IDs) and the values being the list of image paths corresponding to each ID
-            log: a logger object to log the progress (default: None)
         '''
         self.database = {}
         for class_id, paths in image_paths.items():
@@ -244,11 +245,11 @@ class MyClassifier:
             for path in paths:
                 feature = self.extract_feature(path)
                 if feature is None:
-                    print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=log)
+                    print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
                 else:
                     self.database[class_id].append(feature)
             if len(self.database[class_id]) == 0:
-                print_and_log(f"Warning: No feature could be extracted for class {class_id}. This class cannot be used for classification.", log=log)
+                print_and_log(f"Warning: No feature could be extracted for class {class_id}. This class cannot be used for classification.", log=self.log)
 
     def get_class_scores(self, track_feats):
         '''
@@ -257,7 +258,6 @@ class MyClassifier:
 
         Args:
             track_feats: list, a list of feature vectors for the track
-            database: dict, a dictionary of features for each class
 
         Returns:
             scores: dict, a dictionary of best scores for each class

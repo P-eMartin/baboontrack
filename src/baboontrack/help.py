@@ -41,9 +41,11 @@ helptext_gui = '''Use the GUI to select the parameters and visualize the results
 helptext_tracker_type = '''Type of tracker to use. Default: None.
 Options:
 - "bytetrack": Use ByteTrack for tracking. This is a high-performance tracker that can handle occlusions and missed detections well.
-- "deepsort": Use DeepSORT for tracking. This tracker uses a combination of motion and appearance features for tracking, which can be effective in crowded scenes.
+- "deepsort": Use DeepSORT for tracking. This tracker uses a combination of motion and appearance features for tracking,
+    which can be effective in crowded scenes.
 - "botsort": Use BoTSORT for tracking. This tracker is designed for real-time applications and can handle occlusions and missed detections.
-- "sam3": Use SAM 3 for tracking. This tracker uses a segmentation-based approach for tracking, which can be effective in cases of significant appearance changes or occlusions.
+- "sam3": Use SAM 3 for tracking. This tracker uses a segmentation-based approach for tracking,
+    which can be effective in cases of significant appearance changes or occlusions.
 - None: Tracking based on IoU.
 '''
 
@@ -60,13 +62,15 @@ helptext_det_model = '''Model to use for detection. Default: "md_v5b.0.0.pt".
 Options:
 - "MDv5a": MegaDetector model trained on a dataset of animals in the wild.
 - "MDv5b": Same but different training hyperparameters.
-- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models. The model should be a .pt file containing the weights of the model.
+- path to a custom model: You can provide the path to a custom model trained on your own dataset following the same format as the MegaDetector models.
+    The model should be a .pt file containing the weights of the model.
 - "sam3": Use SAM 3 for detection and tracking.
 - "sam3_det": Use SAM 3 for detection only.
 '''
 
 helptext_text_prompt = '''Text prompt to use for SAM 3 tracking. Default: "an animal".
-This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video. You can experiment with different prompts to see how it affects the tracking performance.
+This prompt will be used to guide the SAM 3 tracker in identifying and tracking the Baboons in the video.
+You can experiment with different prompts to see how it affects the tracking performance.
 '''
 
 helptext_chunk_size = '''Chunk size for processing the video in segments with SAM3. Default: 200.
@@ -77,6 +81,27 @@ helptext_overlap = '''Overlap size for processing the video in segments with SAM
 The overlap size determines how many frames will be shared between consecutive chunks of the video.
 This can help maintain tracking continuity across chunk boundaries, especially in cases where Baboons may move in and out of the frame.
 A larger overlap may improve tracking accuracy but will increase processing time.
+'''
+
+helptext_class_det = '''Type of detector to use for classification. Default: None.
+Options:
+- "primateface": Use PrimateFace for detection. This detector is specifically designed for detecting primate faces and can be effective
+    in identifying Baboons in the video.
+- None: No detector will be used for classification. The classifier will operate on the bboxes provided by the detection step without any
+    additional filtering or refinement.
+'''
+
+helptext_class_det_thr = '''Detection threshold for the classification detector. Default: 0.5.
+This threshold determines the confidence level required for the classification detector to consider a detection valid.
+A higher threshold will result in fewer detections being considered, which may reduce false positives but could also miss some true positives.
+Adjust this parameter based on the expected quality of detections and the desired balance between precision and recall.
+'''
+
+helptext_class_nms_thr = '''Non-maximum suppression (NMS) threshold for the classification detector. Default: 0.4.
+NMS is a technique used to eliminate redundant overlapping detections by keeping only the detection with the highest confidence score.
+The NMS threshold determines how much overlap is allowed between detections before they are suppressed.
+A lower threshold will result in more aggressive suppression, which can help reduce false positives but may also eliminate some true positives.
+Adjust this parameter based on the expected density of Baboons in the video and the desired balance between precision and recall.
 '''
 
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
