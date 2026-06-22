@@ -27,8 +27,7 @@ from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
     save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
-from .bt_utils.classifier import load_model_and_transform, extract_feature, build_feature_dict, build_image_paths_dict,\
-    get_class_scores, resolve_class_assignments
+from .bt_utils.classifier import MyClassifier, build_image_paths_dict, resolve_class_assignments
 
 # Help variables
 from .help import *
@@ -412,6 +411,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
+    ## Set my_video to bgr extraction for classification
+    my_video.bgr = True
 
     ## Check if detection_dict is filepath or dict
     detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
@@ -423,8 +424,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
         n_tracks = 0
-        model, transform = load_model_and_transform(device=device)
-        feature_database = build_feature_dict(model, transform, img_path_dict)
+        my_classifier = MyClassifier(device=device)
+        my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
@@ -448,10 +449,12 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                 img = my_video.get_frame_at_idx(frame_idx)
                 x, y, w, h = det['bbox']
                 img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
-                feature = extract_feature(model, transform, img_cropped)
+                feature = my_classifier.extract_feature(img_cropped)
+                if feature is None:
+                    continue
                 features.append(feature)
             track_class_dict[track_id] = {
-                'scores': get_class_scores(features, feature_database),
+                'scores': my_classifier.get_class_scores(features),
                 'idxs': idxs
             }
         progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
