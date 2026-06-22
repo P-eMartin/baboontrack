@@ -17,7 +17,7 @@ A higher resolution will increase the computation time.
 '''
 
 helptext_det_score_th = '''Detection threshold. Default: 0 to consider all detections. Max: 1.
-The higher the value, the more likely the detectons will be correct.
+The higher the value, the more likely the detections will be correct.
 '''
 
 helptext_del_imgs = '''Remove the images created for the video.

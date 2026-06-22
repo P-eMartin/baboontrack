@@ -5,6 +5,21 @@ import torchvision.transforms as T
 from PIL import Image
 import torch.nn.functional as F
 import os
+from .primateface import PrimateFace
+
+class PrimateFaceDetector:
+    def __init__(self, device='cuda', det_thr=0.5, nms_thr=0.4):
+        pf = PrimateFace(
+            device= device,
+            pose_model = None,
+            det_threshold = det_thr,
+            nms_threshold = nms_thr
+        )
+        return pf
+    
+    def detect(self, img):
+        bboxes, scores = self._processor.detect_primates(img)
+        return bboxes, scores
 
 def cosine_similarity(a, b):
     return F.cosine_similarity(
