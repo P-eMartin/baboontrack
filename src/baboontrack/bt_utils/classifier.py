@@ -213,7 +213,7 @@ class MyClassifier:
             image = self.read_image_cv2(img)
             bboxes, scores = self.det.detect(image)
             if len(bboxes) == 0:
-                return None
+                return None, None
             # Take the bbox with the highest score
             best_idx = np.argmax(scores)
             x1, y1, x2, y2 = bboxes[best_idx]

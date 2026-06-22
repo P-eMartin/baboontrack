@@ -458,7 +458,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                     continue
                 features.append(feature)
                 if extra_bbox is not None:
-                    extra_bbox[frame_idx] = extra_bbox
+                    extra_bboxs[frame_idx] = extra_bbox
             track_class_dict[track_id] = {
                 'scores': my_classifier.get_class_scores(features),
                 'idxs': idxs,
@@ -533,21 +533,23 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     Returns:
         int, 1 if the function ran successfully
-    '''
-    # Path checks and output folder creation
-    if not os.path.exists(args.input_video):
-        print_and_log('Error: input %s must be a file or a folder' % (args.input_video), log=log, to_print=False)
-        raise ValueError('No input provided.')
-    os.makedirs(args.output, exist_ok=True)
-    
+    '''  
     # Chrono
     start_time = time.time()
 
     # Video object initialization
-    my_video = VideoFrameIterator(args.input_video, log=log)
+    ## Check if input_video is already a VideoFrameIterator object
+    if isinstance(args.input_video, VideoFrameIterator):
+        my_video = args.input_video
+    else:
+        if not os.path.exists(args.input_video):
+            print_and_log('Error: input %s must be a file or a folder' % (args.input_video), log=log, to_print=False)
+            raise ValueError('No input provided.')
+        my_video = VideoFrameIterator(args.input_video, log=log)
     image_size = my_video.get_image_size()
-    print_and_log('Video %s opened with resolution %s and %d frames.' % (args.input_video, str(image_size), len(my_video)), log=log)
-    my_video.check_video()
+    print_and_log('Video %s opened with resolution %s and %d frames.' % (my_video.path, str(image_size), len(my_video)), log=log)
+    if not my_video.checked:
+        my_video.check_video()
 
     # Load ground truth if evaluation is enabled
     if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:
@@ -556,6 +558,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
+    os.makedirs(args.output, exist_ok=True)
     if check_stop(log=log): return 0
     det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if 'sam3' in args.det_model else "")
     detection_dict = detect(
@@ -717,7 +720,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video.reset_video()
         my_video.plot_annotations(
             class_dict['detections'],
-            os.path.join(args.output, 'video_demo_%s.mp4' % (det_tracker_str)),
+            os.path.join(args.output, 'video_demo_%s.mp4' % (class_det_str)),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
@@ -730,7 +733,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         )
         if check_stop(log=log): return 0
 
-    print_and_log("Processing of %s finished in %ds." % (args.input_video, time.time()-start_time), log=log)
+    print_and_log("Processing of %s finished in %ds." % (my_video.path, time.time()-start_time), log=log)
 
 def main_loop(args, log=None):
     '''
@@ -753,6 +756,7 @@ def main_loop(args, log=None):
         tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
     gt_files_name = ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']
+    args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
         for tracker_type in tracker_types:
@@ -768,7 +772,7 @@ def main_loop(args, log=None):
                         ' with prompt "%s"' % (prompt) if prompt else '',
                         tracker_type,
                         ' with class det %s' % (class_det) if class_det else 'without class det'), log=log)
-                    for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video), name) for name in gt_files_name]:
+                    for gt_file_class_mot in [os.path.join(os.path.dirname(args.input_video.path), name) for name in gt_files_name]:
                         main(args, gt_file_class_mot=gt_file_class_mot, log=log)
 
 

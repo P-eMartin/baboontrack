@@ -49,6 +49,7 @@ class VideoFrameIterator:
         self.log = log
         self.bgr = bgr
         self.fps = fps
+        self.checked = False
         # Check if the video path is a video file or directory/zip with image files
         if path.lower().endswith(video_extensions):
             self.cap = cv2.VideoCapture(path)
@@ -272,7 +273,8 @@ class VideoFrameIterator:
                 else:
                     print_and_log("Warning: Cannot retrieve duration from ffmpeg. The fps information will not be modified.", log=self.log)
             print_and_log("After check, considering video %s with fps %.2f with a total frame of %d." % (self.path, self.fps, self.length), log=self.log)
-    
+        self.checked = True
+
     def reset_and_stop(self):
         print_and_log("Iterations: %d, Frames retrieved: %d Video length: %d" % (self.count, self.idx, self.length), log=self.log)
         self.reset_video()
@@ -537,8 +539,10 @@ def draw_annotations(
             ann.get("extra_bbox"),
             bbox_format=ann.get("bbox_format", "xywh"),
             bbox_normalized=ann.get("bbox_normalized", True),
-            image_size=image_size,
-        )      
+            image_size=image_size
+        )
+        if extra_bbox is not None:
+            extra_bbox = np.array(extra_bbox) + [bbox[0], bbox[1], bbox[0], bbox[1]]  # add the offset of the main bbox
 
         track_id = ann.get("track_id")
         det_id = ann.get("det_id")
