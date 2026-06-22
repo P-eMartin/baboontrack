@@ -160,7 +160,6 @@ class MyClassifier:
         else:
             print_and_log(f"Warning: Detector type {detector_type} not recognized. No detector will be used with the classifier.", log=self.log)
             self.det = None
-        return self
     
     def read_image_cv2(self, img):
         '''
