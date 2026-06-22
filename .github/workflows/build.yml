@@ -29,7 +29,8 @@ jobs:
 
     - name: Install the package
       run: |
-        pip install dist/*.whl
+        pip install dist/*.whl --timeout 1000
+        
     ## Cannot be run because running out of memory on github actions
     # - name: Install OpenMMLab stack
     #   run: |
