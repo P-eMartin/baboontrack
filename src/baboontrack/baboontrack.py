@@ -637,10 +637,11 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     
     # Classification
     if check_stop(log=log): return 0
+    class_det_str = det_tracker_str +'_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
     class_dict = classify(
         tracking_dict,
         my_video,
-        os.path.join(args.output, 'class_%s.json' % (det_tracker_str)),
+        os.path.join(args.output, 'class_%s.json' % (class_det_str)),
         class_database=args.class_database,
         image_size=image_size,
         device=args.device,
@@ -672,7 +673,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             gt_class_coco_file,
             class_coco_file,
             save_path=os.path.join(args.output, 'class_eval.csv'),
-            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
+            name='%s%s' % (class_det_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             extra_info={
                 "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
