@@ -685,7 +685,6 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             labels=classes,
             boundaries=boundaries
         )
-        pdb.set_trace()
         eval_results = evaluate_detection(
             gt_class_coco_file,
             class_coco_file,
@@ -695,8 +694,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
                 "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
-            # arg for noid
-            ignore_classes=
+            ignore_classes=[gt['id'] for gt in gt_dict_coco_class['categories'] if gt['name'] == noid_str]
         )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 

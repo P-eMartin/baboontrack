@@ -101,16 +101,20 @@ class myCOCO(COCO):
 
 class myCOCOeval(COCOeval):
     '''
-    Modified version of Coco eval where enmpty detections are handled gracefully instead of raising an error and
-    where a class from ground truth can be ignored in the evaluation because the annotators are not certain of the
-    category of the object. This is useful for example when the annotators are not sure of the identity of the baboon
+    Modified version of Coco eval where classes can be ignored in the evaluation because the annotators are not certain of
+    the category of the object. This is useful for example when the annotators are not sure of the identity of the baboon
     in the image and they want to ignore it in the evaluation of classification, but not in the evaluation of detection.
     '''
     def __init__(self, cocoGt=None, cocoDt=None, iouType='segm', ignore_classes=[]):
         super().__init__(cocoGt, cocoDt, iouType)
         self.ignore_classes = ignore_classes
 
-
+    def _prepare(self):
+        super()._prepare()
+        for gt in self._gts:
+            for g in self._gts[gt]:
+                if g['category_id'] in self.ignore_classes:
+                    g['ignore'] = 1
 
 '''
 Helper
