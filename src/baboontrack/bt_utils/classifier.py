@@ -23,7 +23,7 @@ def avg_features(track_features):
         avg_feature_dict[key] = torch.stack(features).mean(dim=0)
     return avg_feature_dict
 
-def resolve_class_assignments(track_class_dict, class_threshold=0.5):
+def resolve_class_assignments(track_class_dict, class_threshold=0.5, noid_str='NoID'):
     '''Resolve the class assignments for each track based on the scores, a threshold and overlapping tracks using while.
     If no score is above the threshold, assign "NoID" class.
 
@@ -54,25 +54,25 @@ def resolve_class_assignments(track_class_dict, class_threshold=0.5):
     # Current choice rank for each track
     choice_idx = {tid: 0 for tid in track_ids}
 
-    def get_assignment(track_id):
+    def get_assignment(track_id, noid_str):
         ranking = ranked_classes[track_id]
         while choice_idx[track_id] < len(ranking):
             cls, score = ranking[choice_idx[track_id]]
             if score >= class_threshold:
                 return cls, score
             break
-        return "NoID", 0.0
+        return noid_str, 0.0
 
     changed = True
     while changed:
         changed = False
         current_assignment = {
-            tid: get_assignment(tid)
+            tid: get_assignment(tid, noid_str)
             for tid in track_ids
         }
         for tid1 in track_ids:
             cls1, score1 = current_assignment[tid1]
-            if cls1 == "NoID":
+            if cls1 == noid_str:
                 continue
             for tid2 in overlaps[tid1]:
                 if tid1 >= tid2:
@@ -90,7 +90,7 @@ def resolve_class_assignments(track_class_dict, class_threshold=0.5):
                 break
             if changed:
                 break
-    final_assignments = {tid: get_assignment(tid) for tid in track_ids}
+    final_assignments = {tid: get_assignment(tid, noid_str) for tid in track_ids}
     return final_assignments
 
 def cosine_similarity(a, b):

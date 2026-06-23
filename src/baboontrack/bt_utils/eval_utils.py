@@ -2,6 +2,11 @@ import pdb
 
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
+from pycocotools import mask as maskUtils
+import json
+import time
+import sys
+PYTHON_VERSION = sys.version_info[0]
 import numpy as np
 import pandas as pd
 # To avoid the error "AttributeError: module 'numpy' has no attribute 'asfarray'" when using motmetrics
@@ -12,9 +17,100 @@ import os
 import copy
 import re
 from .io_utils import print_and_log, save_json_file, get_value_with_precision, save_dict_as_csv, zip_folder
+from .json_utils import load_json_file
 from collections import defaultdict
 import zipfile
 from .bot_sort.tracking_utils.evaluation import Evaluator
+
+class myCOCO(COCO):
+    '''
+    Modified version of Coco where enmpty detections are handled gracefully instead of raising an error.
+    '''
+    def loadRes(self, resFile):
+        """
+        Load result file and return a result api object.
+
+        Args:
+            resFile (str or list): filename of result file or the results as a list of dicts.
+
+        Returns:
+            myCOCO: result api object
+        """
+        res = COCO()
+        res.dataset['info'] = copy.deepcopy(self.dataset.get('info', {}))
+        res.dataset['images'] = [img for img in self.dataset['images']]
+
+        print('Loading and preparing results...')
+        tic = time.time()
+        if type(resFile) == str or (PYTHON_VERSION == 2 and type(resFile) == unicode):
+            with open(resFile) as f:
+                anns = json.load(f)
+        elif type(resFile) == np.ndarray:
+            anns = self.loadNumpyAnnotations(resFile)
+        else:
+            anns = resFile
+        assert type(anns) == list, 'results in not an array of objects'
+        annsImgIds = [ann['image_id'] for ann in anns]
+        assert set(annsImgIds) == (set(annsImgIds) & set(self.getImgIds())), \
+               'Results do not correspond to current coco set'
+        # Case when the results are empty
+        if len(anns) == 0:
+            print('Results is empty.')
+            res.dataset['annotations'] = []
+            res.createIndex()
+            return res
+        if 'caption' in anns[0]:
+            imgIds = set([img['id'] for img in res.dataset['images']]) & set([ann['image_id'] for ann in anns])
+            res.dataset['images'] = [img for img in res.dataset['images'] if img['id'] in imgIds]
+            for id, ann in enumerate(anns):
+                ann['id'] = id+1
+        elif 'bbox' in anns[0] and not anns[0]['bbox'] == []:
+            res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
+            for id, ann in enumerate(anns):
+                bb = ann['bbox']
+                x1, x2, y1, y2 = [bb[0], bb[0]+bb[2], bb[1], bb[1]+bb[3]]
+                if not 'segmentation' in ann:
+                    ann['segmentation'] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
+                ann['area'] = bb[2]*bb[3]
+                ann['id'] = id+1
+                ann['iscrowd'] = 0
+        elif 'segmentation' in anns[0]:
+            res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
+            for id, ann in enumerate(anns):
+                # now only support compressed RLE format as segmentation results
+                ann['area'] = maskUtils.area(ann['segmentation'])
+                if not 'bbox' in ann:
+                    ann['bbox'] = maskUtils.toBbox(ann['segmentation'])
+                ann['id'] = id+1
+                ann['iscrowd'] = 0
+        elif 'keypoints' in anns[0]:
+            res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
+            for id, ann in enumerate(anns):
+                s = ann['keypoints']
+                x = s[0::3]
+                y = s[1::3]
+                x0,x1,y0,y1 = np.min(x), np.max(x), np.min(y), np.max(y)
+                ann['area'] = (x1-x0)*(y1-y0)
+                ann['id'] = id + 1
+                ann['bbox'] = [x0,y0,x1-x0,y1-y0]
+        print('DONE (t={:0.2f}s)'.format(time.time()- tic))
+
+        res.dataset['annotations'] = anns
+        res.createIndex()
+        return res
+
+class myCOCOeval(COCOeval):
+    '''
+    Modified version of Coco eval where enmpty detections are handled gracefully instead of raising an error and
+    where a class from ground truth can be ignored in the evaluation because the annotators are not certain of the
+    category of the object. This is useful for example when the annotators are not sure of the identity of the baboon
+    in the image and they want to ignore it in the evaluation of classification, but not in the evaluation of detection.
+    '''
+    def __init__(self, cocoGt=None, cocoDt=None, iouType='segm', ignore_classes=[]):
+        super().__init__(cocoGt, cocoDt, iouType)
+        self.ignore_classes = ignore_classes
+
+
 
 '''
 Helper
@@ -510,10 +606,14 @@ def coco_eval(gt_file, detection_file):
     Run COCO evaluation and return metrics as a flat dictionary.
     """
 
-    coco_gt = COCO(gt_file)
+    coco_gt = myCOCO(gt_file)
+    # Check quickly if there are any detections otherwise loading lead to error:
+    # if len(load_json_file(detection_file)) == 0:
+    #     coco_dt = coco_gt.loadRes([{'image_id':1,'id':0,'category_id':1,'bbox':[0,0,0,0],'score':0}])
+    # else:
     coco_dt = coco_gt.loadRes(detection_file)
-
-    coco_eval = COCOeval(coco_gt, coco_dt, iouType="bbox")
+    
+    coco_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox")
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
