@@ -601,7 +601,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
 #####
 ## Evaluation of the detection and tracking results
 #####
-def coco_eval(gt_file, detection_file):
+def coco_eval(gt_file, detection_file, ignore_classes=[]):
     """
     Run COCO evaluation and return metrics as a flat dictionary.
     """
@@ -613,7 +613,7 @@ def coco_eval(gt_file, detection_file):
     # else:
     coco_dt = coco_gt.loadRes(detection_file)
     
-    coco_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox")
+    coco_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox", ignore_classes=ignore_classes)
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
@@ -633,7 +633,7 @@ def coco_eval(gt_file, detection_file):
         "AR_large": coco_eval.stats[11],
     }
 
-def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None):
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[]):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -642,11 +642,12 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
         detection_file: str, path to the detection JSON file or zip file in COCO format
         save_path: str, path to save the evaluation results (default None)
         extra_info: dict (optional), additional metadata to include in the evaluation results
+        ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
 
     Returns:
         dict, the evaluation results
     '''
-    metrics = coco_eval(gt_file, detection_file)
+    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes)
     if save_path is not None:
         update_eval_csv(
             csv_path=save_path,
