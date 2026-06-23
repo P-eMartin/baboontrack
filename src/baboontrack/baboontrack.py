@@ -654,7 +654,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     
     # Classification
     if check_stop(log=log): return 0
-    class_det_str = det_tracker_str +'_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
+    class_det_str = det_tracker_str + ('_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else '')
     class_dict = classify(
         tracking_dict,
         my_video,
