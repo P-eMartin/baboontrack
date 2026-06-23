@@ -359,7 +359,7 @@ class VideoFrameIterator:
     
     def plot_annotations(
             self, annotations, output_path, max_res=None, thickness=None, fontscale=None, display_fct=None,
-            classification_classes=None, detection_classes=None, n_tracks=0, bbox_format='xywh', bbox_normalized=True,
+            classification_classes=None, detection_classes=None, track_ids=[0], bbox_format='xywh', bbox_normalized=True,
             font=cv2.FONT_HERSHEY_SIMPLEX, del_imgs=False, gt_annotations=None, gt_classes=None, log=None
         ):
         '''
@@ -404,7 +404,7 @@ class VideoFrameIterator:
         # Color dictionaries
         detection_color_dict = get_colormap_dict(detection_classes, cv2.COLORMAP_TURBO, cycle_size=20)
         classification_color_dict = get_colormap_dict(classification_classes, cv2.COLORMAP_VIRIDIS)
-        track_color_dict = get_colormap_dict([i for i in range(1, n_tracks + 1)], cv2.COLORMAP_TURBO, cycle_size=20)
+        track_color_dict = get_colormap_dict(track_ids, cv2.COLORMAP_TURBO, cycle_size=20)
 
         # Check if the number of images in the folder is the same as the video length
         if len(os.listdir(output_folder)) != self.length:

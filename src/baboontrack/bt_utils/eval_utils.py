@@ -111,10 +111,11 @@ class myCOCOeval(COCOeval):
 
     def _prepare(self):
         super()._prepare()
-        for gt in self._gts:
-            for g in self._gts[gt]:
-                if g['category_id'] in self.ignore_classes:
-                    g['ignore'] = 1
+        if self.ignore_classes:
+            for gt in self._gts:
+                for g in self._gts[gt]:
+                    if g['category_id'] in self.ignore_classes:
+                        g['ignore'] = 1
 
 '''
 Helper

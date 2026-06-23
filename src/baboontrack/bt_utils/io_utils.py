@@ -149,9 +149,9 @@ def progress_bar(count, total, title, completed=0, log=None):
         terminal_size = log.terminal_size
     else:
         terminal_size = get_terminal_size()
-    percentage = int(100.0 * count / total)
+    percentage = int(100.0 * count / total) if total > 0 else 100
     length_bar = min([max([3, terminal_size[0] - len(title) - len(str(total)) - len(str(count)) - len(str(percentage)) - 10]),20])
-    filled_len = int(length_bar * count / total)
+    filled_len = int(length_bar * count / total) if total > 0 else length_bar
     bar = '█' * filled_len + ' ' * (length_bar - filled_len)
     # To delete the content of the current line
     sys.stdout.write('\x1b[2K')

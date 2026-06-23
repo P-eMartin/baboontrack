@@ -193,7 +193,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         return output_file
 
     ## Variables
-    track_id = 0
+    track_id = 1
     det_results = []
     tracking_buffer = []
     last_tracks = []
@@ -243,10 +243,11 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
         det_results.append(det_result)
         if display_fct is not None:
             display_fct(frame, det_result)
-    progress_bar(len(my_video), len(my_video), 'Detection and Tracking done in %ds with %d tracks' % (time.time() - start_time, track_id), log=log, completed=True)
+    progress_bar(len(my_video), len(my_video), 'Detection and Tracking done in %ds with %d tracks' % (time.time() - start_time, track_id-1), log=log, completed=True)
         
     # Saving
-    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size, 'n_tracks': track_id}
+    track_ids = [i for i in range(1, track_id)]
+    output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size, 'track_ids': track_ids}
     save_json_file(output_results, output_file)
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
@@ -307,7 +308,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         return detection_dict
 
     # Loop over the video frames and detection results
-    n_tracks = -1
+    n_tracks = 0
     all_tracks = []
     start_loop = time.time()
     for idx, (frame, det_result) in enumerate(zip(my_video, detection_dict['detections'])):
@@ -377,7 +378,8 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     progress_bar(len(my_video), len(my_video), 'Tracking done in %ds with %d tracks' % (time.time() - start_time, n_tracks), log=log, completed=True)
 
     # Saving
-    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': image_size, 'n_tracks': n_tracks, 'tracker_type': tracker_type}
+    track_ids = [i for i in range(1, n_tracks+1)]
+    output_results = {'detections': all_tracks, 'format': 'xywh', 'image_size': image_size, 'track_ids': track_ids, 'tracker_type': tracker_type}
     if 'detection_classes' in detection_dict:
         output_results['detection_classes'] = detection_dict['detection_classes']
     save_json_file(output_results, output_file)
@@ -423,7 +425,6 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        n_tracks = 0
         my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, log=log)
         my_classifier.build_database(img_path_dict)
 
@@ -493,11 +494,12 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                         float(extra_bbox[2] / image_size[0]),
                         float(extra_bbox[3] / image_size[1])
                     ]
-    n_tracks = len(set(track_ids))
+    track_ids = list(set(track_ids))
+    n_tracks = len(track_ids)
     # Saving
     # class_dict['detection_classes'] = [f"Track {i}" for i in range(1, n_tracks + 1)]
     class_dict['classification_classes'] = classes
-    class_dict['n_tracks'] = n_tracks
+    class_dict['track_ids'] = track_ids
     save_json_file(class_dict, output_file)
     save_json_file(class_dict, output_file.replace('.json', '.pretty.json'), pretty=True)
     print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
@@ -724,7 +726,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
             classification_classes=class_dict.get('classification_classes'),
-            n_tracks=class_dict.get('n_tracks', 0),
+            track_ids=class_dict.get('track_ids', [0]),
             del_imgs=args.del_imgs,
             gt_annotations=coco_to_perso_format(gt_dict_coco_class['annotations'], image_size=image_size) if args.eval_classification and gt_file_class_mot else None,
             gt_classes=gt_classes if args.eval_classification and gt_file_class_mot else None,
