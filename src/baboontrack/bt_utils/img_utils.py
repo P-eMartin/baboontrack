@@ -553,17 +553,14 @@ def draw_annotations(
         id_score = ann.get("score")
 
         # COLORS
-        if track_color_dict and track_id is not None:
-            color_det = track_color_dict[track_id]
-        elif detection_color_dict and det_id:
-            color_det = detection_color_dict[det_id]
+        if len(classification_color_dict or {}) > 1 and class_id in classification_color_dict:
+            color_bbox = classification_color_dict[class_id]
+        elif track_color_dict and track_id in track_color_dict:
+            color_bbox = track_color_dict[track_id]
+        elif detection_color_dict and det_id in detection_color_dict:
+            color_bbox = detection_color_dict[det_id]
         else:
-            color_det = (255, 0, 0)
-        if classification_color_dict:
-            color_id = classification_color_dict[class_id]
-        else:
-            color_id = (255, 0, 0)
-        color_bbox = color_id if len(classification_color_dict or {}) > 1 else color_det
+            color_bbox = (255, 0, 0)
 
         # DRAW BBOXs
         cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color_bbox, thickness)
