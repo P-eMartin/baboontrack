@@ -139,7 +139,6 @@ class VideoFrameIterator:
             self.__next__()
         return self.__next__()
 
-
     def extract_all_frames(self, output_folder, log=None):
         '''
         Extract all frames from the video and save them as images in the output folder.

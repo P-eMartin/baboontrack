@@ -191,6 +191,8 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Skipping detection and tracking.' % (output_file), log=log)
         return output_file
+    if not my_video.checked:
+        my_video.check_video()
 
     ## Variables
     track_id = 1
@@ -308,6 +310,8 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
         return detection_dict
 
     # Loop over the video frames and detection results
+    if not my_video.checked:
+        my_video.check_video()
     n_tracks = 0
     all_tracks = []
     start_loop = time.time()
@@ -414,6 +418,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
     ## Set my_video to bgr extraction for classification
+    if not my_video.checked:
+        my_video.check_video()
     my_video.bgr = True
 
     ## Check if detection_dict is filepath or dict
@@ -518,6 +524,27 @@ def false_check(log=None):
     '''
     return False
 
+def find_file_with_ending(file_path, endings):
+    '''
+    Find a file with a specific ending in the given path.
+
+    Args:
+        file_path: str, the path to search for the file
+        endings: list of str, the list of endings to search for
+
+    Returns:
+        str or None, the path to the found file or None if not found
+    '''
+    if os.path.isfile(file_path):
+        return file_path
+    elif os.path.isdir(file_path):
+        for ending in endings:
+            for root, dirs, files in os.walk(file_path):
+                for file in files:
+                    if file.endswith(ending):
+                        return os.path.join(root, file)
+    return None
+
 def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     '''
     Main function to process the video.
@@ -546,14 +573,18 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video = VideoFrameIterator(args.input_video, log=log)
     image_size = my_video.get_image_size()
     print_and_log('Video %s opened with resolution %s and %d frames.' % (my_video.path, str(image_size), len(my_video)), log=log)
-    if not my_video.checked:
-        my_video.check_video()
 
     # Load ground truth if evaluation is enabled
-    if (args.eval_detection or args.eval_tracking or args.eval_classification) and gt_file_class_mot:
-        # With class ID being the track id but also the det ID
-        boundaries = extract_boundaries(gt_file_class_mot, log=log)
-        gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
+    if (args.eval_detection or args.eval_tracking or args.eval_classification):
+        # If Gt file not provided, try to find it using video name + .zip or + _MOT.zip
+        if gt_file_class_mot is None:
+            gt_file_class_mot = find_file_with_ending(args.input_video, ['.zip', '_MOT.zip'])
+        if gt_file_class_mot is None:
+            print_and_log('No ground truth file found for evaluation. Skipping evaluation.', log=log)
+        else:
+            # With class ID being the track id but also the det ID
+            boundaries = extract_boundaries(gt_file_class_mot, log=log)
+            gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
     os.makedirs(args.output, exist_ok=True)
@@ -869,7 +900,7 @@ def get_args():
     )
     parser.add_argument(
         '-D', '--det_model',
-        default='md_v5b.0.0.pt',
+        default='sam3',
         type=str,
         help=helptext_det_model
     )
@@ -882,7 +913,7 @@ def get_args():
     parser.add_argument(
         '-T', '--tracker_type',
         type=str,
-        default='IoU',
+        default='sam3',
         help=helptext_tracker_type
     )
     parser.add_argument(
