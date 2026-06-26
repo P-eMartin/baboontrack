@@ -1081,12 +1081,6 @@ def final_evaluation(args, main_output, log=None):
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, class_eval_file), log=log)
 
-        
-
-
-
-
-
 def run(**kwargs):
     '''
     Run BaboonTrack with arguments.
