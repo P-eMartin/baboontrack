@@ -25,7 +25,7 @@ from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
-    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts
+    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_coco_formats
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
 from .bt_utils.classifier import MyClassifier, build_image_paths_dict, resolve_class_assignments
 
@@ -474,6 +474,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     else:
         print_and_log(f'No classification dictionary provided. Assigning {noid_str} class to all tracks.', log=log)
         final_assignments = {}
+        track_class_dict = {}
 
     ## Step 4: Save the results in in class_dict
     class_to_idx = {cls_name: idx+1 for idx, cls_name in enumerate(classes)}
@@ -490,7 +491,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             det['category_id'] = class_to_idx[assigned_class]
             det['score'] = assigned_score
             # Save the extra bbox if available
-            if 'extra_bboxes' in track_class_dict[track_id]:
+            if track_id in track_class_dict and 'extra_bboxes' in track_class_dict[track_id]:
                 extra_bbox = track_class_dict[track_id]['extra_bboxes'].get(det['image_id']-1)
                 if extra_bbox is not None:
                     # Normalize the extra bbox coordinates to be in the range [0, 1] relative to the image size
@@ -590,10 +591,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     os.makedirs(args.output, exist_ok=True)
     noid_str = 'NoID'
     if check_stop(log=log): return 0
-    det_model_str = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if 'sam3' in args.det_model else "")
+    det_name = '%s%s' % (os.path.basename(args.det_model).split('.')[0], ("_" + args.text_prompt.replace(" ", "_")) if 'sam3' in args.det_model else "")
     detection_dict = detect(
         my_video,
-        os.path.join(args.output, 'det_%s.json') % det_model_str,
+        os.path.join(args.output, 'det_dicts', '%s.json' % det_name),
         device=args.device,
         score=args.det_score_th,
         tracking_size=args.tracking_size,
@@ -617,7 +618,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         save_json_file(gt_dict_coco_det, gt_det_coco_file.replace('.json', '.pretty.json'), pretty=True)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
-            os.path.join(args.output, 'det_coco_format_%s' % det_model_str),
+            os.path.join(args.output, 'det_coco_format', '%s.json' % det_name),
             image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
@@ -625,7 +626,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         eval_results = evaluate_detection(
             gt_det_coco_file,
             det_coco_file,
-            name='%s%s' % (det_model_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
+            name='%s%s' % (det_name, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             save_path=os.path.join(args.output, 'det_eval.csv'),
             extra_info={
                 "video_length": len(my_video),
@@ -636,11 +637,11 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
 
     # Tracking
     if check_stop(log=log): return 0
-    det_tracker_str = '%s_%s' % (det_model_str, args.tracker_type)
+    track_name = '%s_%s' % (det_name, args.tracker_type)
     tracking_dict = track(
         my_video,
         detection_dict,
-        os.path.join(args.output, 'track_%s.json' % det_tracker_str),
+        os.path.join(args.output, 'track_dicts', '%s.json' % track_name),
         device=args.device,
         tracking_size=args.tracking_size,
         score_th=args.det_score_th,
@@ -656,7 +657,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         # Save tracking results in MOT format for evaluation
         track_mot_file = save_mot_format(
             tracking_dict['detections'],
-            os.path.join(args.output, 'track_mot_format'),
+            os.path.join(args.output, 'track_mot_format', track_name),
             image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
@@ -674,7 +675,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         eval_results = evaluate_tracking(
             gt_track_mot_folder,
             track_mot_file,
-            name='%s%s' % (det_tracker_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
+            name='%s%s' % (track_name, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             save_path=os.path.join(args.output, 'track_eval.csv'),
             extra_info={
                 "video_length": len(my_video),
@@ -685,11 +686,11 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     
     # Classification
     if check_stop(log=log): return 0
-    class_det_str = det_tracker_str + ('_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else '')
+    classi_name = track_name + ('_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else '')
     class_dict = classify(
         tracking_dict,
         my_video,
-        os.path.join(args.output, 'class_%s.json' % (class_det_str)),
+        os.path.join(args.output, 'class_dicts', '%s.json' % (classi_name)),
         class_database=args.class_database,
         image_size=image_size,
         device=args.device,
@@ -713,7 +714,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         uniform_class_list = solve_id_conflicts(class_dict['detections'], classes, gt_labels, default_label=noid_str, log=log)
         class_coco_file = save_coco_format(
             uniform_class_list,
-            os.path.join(args.output, 'class_coco_format'),
+            os.path.join(args.output, 'class_coco_format', '%s.json' % (classi_name)),
             image_size=image_size,
             labels=classes,
             boundaries=boundaries
@@ -722,7 +723,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             gt_class_coco_file,
             class_coco_file,
             save_path=os.path.join(args.output, 'class_eval.csv'),
-            name='%s%s' % (class_det_str, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
+            name='%s%s' % (classi_name, ("_b" + "-".join(str(x) for pair in boundaries for x in pair)) if boundaries else ""),
             extra_info={
                 "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
@@ -752,7 +753,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video.reset_video()
         my_video.plot_annotations(
             class_dict['detections'],
-            os.path.join(args.output, 'video_demo_%s.mp4' % (class_det_str)),
+            os.path.join(args.output, 'video_demos', '%s.mp4' % (classi_name)),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
@@ -1005,6 +1006,87 @@ def check_args(**kwargs):
     args.display_fct = None
     return args
 
+def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, log=None):
+    gt_file_per_video = {}
+    pred_files_per_method_per_video = {}
+    for video_output in video_outputs:
+        gt_file = os.path.join(video_output, gt_file_name)
+        if not os.path.exists(gt_file):
+            print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
+            continue
+        pred_files = [os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) if f.endswith('.json')]
+        gt_file_per_video[video_output] = gt_file
+        for pred_file in pred_files:
+            method_name = os.path.splitext(os.path.basename(pred_file))[0]
+            if method_name not in pred_files_per_method_per_video:
+                pred_files_per_method_per_video[method_name] = {}
+            pred_files_per_method_per_video[method_name][video_output] = pred_file
+    for method_name in pred_files_per_method_per_video:
+        gt_file, method_pred = merge_coco_formats(
+            gt_file_per_video.values(),
+            pred_files_per_method_per_video[method_name].values(),
+            os.path.join(output_merges, '%s_merged.json' % (method_name)),
+        )
+        eval_results = evaluate_detection(
+            gt_file,
+            method_pred,
+            name='%s' % (method_name),
+            save_path=eval_file,
+        )
+        print_and_log('\tMethod %s: %s' % (method_name, str(eval_results)), log=log)
+
+def final_evaluation(args, main_output, log=None):
+    '''
+    Perform a final evaluation on all the videos together if ground truth is available.
+
+    Args:
+        args: argparse.Namespace, the arguments
+        main_output: str, the path to the main output folder
+        log: logger, the logger to print the information
+    '''
+    video_outputs = sorted([os.path.join(main_output, f) for f in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, f))])
+    if args.eval_detection:
+        # Evaluate detection results
+        start_time = time.time()
+        print_and_log('Performing final detection evaluation on all videos together...', log=log)
+        final_eval_coco(
+            video_outputs,
+            os.path.join(main_output, 'final_evaluation', 'det_eval.csv'),
+            'gt_det_coco_format.json',
+            'det_coco_format',
+            os.path.join(main_output, 'final_evaluation', 'det_eval'),
+            log=log
+        )
+        print_and_log('Final detection evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
+
+    if args.eval_tracking:
+        # Evaluate tracking results
+        start_time = time.time()
+        print_and_log('Performing final tracking evaluation on all videos together...', log=log)
+        track_eva_file = os.path.join(main_output, 'track_eval.csv')
+
+        print_and_log('Final tracking evaluation results performed in %ds and saved in %s' % (time.time() - start_time, track_eva_file), log=log)
+
+    if args.eval_classification:
+        # Evaluate classification results
+        start_time = time.time()
+        class_eval_file = os.path.join(main_output, 'class_eval.csv')
+        final_eval_coco(
+            video_outputs,
+            os.path.join(main_output, 'final_evaluation', 'class_eval.csv'),
+            'gt_class_coco_format.json',
+            'class_coco_format',
+            os.path.join(main_output, 'final_evaluation', 'class_eval'),
+            log=log
+        )
+        print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, class_eval_file), log=log)
+
+        
+
+
+
+
+
 def run(**kwargs):
     '''
     Run BaboonTrack with arguments.
@@ -1033,14 +1115,16 @@ def run(**kwargs):
         if os.path.isfile(args.input_video) or (os.path.isdir(args.input_video) and any(os.path.isfile(os.path.join(args.input_video, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in os.listdir(args.input_video))):
             main_funct(args, log=log)
         else:
-            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            main_input = copy.deepcopy(args.input_video)
             main_output = copy.deepcopy(args.output)
+            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
             for input_path in input_list:
                 args.input_video = input_path
                 args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
                 main_funct(args, log=log)
+            # In folder case, perform a final evaluation on all the videos together if ground truth is available
+            final_evaluation(args, main_output, log=log)
         close_log(log)
-    
     # Finish
     print('BaboonTrack finished.')
     return 1

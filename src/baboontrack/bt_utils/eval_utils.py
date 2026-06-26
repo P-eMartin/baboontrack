@@ -665,14 +665,38 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
 def mot_eval(gt_file, tracking_file):
     """
     Evaluate MOT tracking performance and return a flat dictionary.
+    Can process file/file or folder/folder (in which case it will return the average metrics across all files).
+
+    Args:
+        gt_file: str, path to the ground truth MOT file (can be a zip file, a folder containing gt/gt.txt, or a gt.txt file)
+        tracking_file: str, path to the tracking results MOT file (can be a zip file, a folder containing gt/gt.txt, or a gt.txt file)
+
+    Returns:
+        dict, the evaluation results
     """
+    if os.path.isdir(gt_file) and os.path.isdir(tracking_file):
+        # If both are directories, evaluate each pair of files and average the results
+        gt_files = sorted([os.path.join(gt_file, f) for f in os.listdir(gt_file) if f.endswith('.txt')])
+        tracking_files = sorted([os.path.join(tracking_file, f) for f in os.listdir(tracking_file) if f.endswith('.txt')])
+        if len(gt_files) != len(tracking_files):
+            raise ValueError("The number of ground truth files and tracking files must be the same.")
+        data_root = gt_file
+        for idx, gt_f, tr_f in enumerate(zip(gt_files, tracking_files)):
+            seq_name = os.path.basename(gt_f).split('.')[0]
+            if idx == 0:
+                # Initialize the evaluator with the first sequence
+                evaluator = Evaluator(data_root, seq_name, data_type="mot")
+            else:
+                # Update the evaluator with the next sequence
+                evaluator.seq_name = seq_name
+                evaluator.load_annotations()
+            eval_results = evaluator.eval_file(tr_f)
+    else:
+        data_root = os.path.dirname(gt_file)
+        seq_name = os.path.basename(gt_file).split('.')[0]
+        evaluator = Evaluator(data_root, seq_name, data_type="mot")
+        eval_results = evaluator.eval_file(tracking_file)
 
-    data_root = os.path.dirname(gt_file)
-    seq_name = os.path.basename(gt_file).split('.')[0]
-
-    evaluator = Evaluator(data_root, seq_name, data_type="mot")
-
-    eval_results = evaluator.eval_file(tracking_file)
     summary = evaluator.get_summary([eval_results], [seq_name])
 
     # ------------------------------------------------------------
@@ -715,3 +739,54 @@ def evaluate_tracking(gt_file, tracking_file, save_path=None, name=None, extra_i
         )
     return metrics
 
+def merge_coco_formats(gt_files, detection_files, output_folder):
+    '''
+    Merge multiple COCO-format ground truth and detection files into a single COCO-format files to be able to evaluate
+    a whole dataset at once. The merged files will be saved in the output_folder.
+    Both are needed in order to be able to modify properly the image_id and annotation_id in the merged files.
+
+    Args:
+        gt_files: list of str, paths to the ground truth JSON files in COCO format
+        detection_files: list of str, paths to the detection JSON files in COCO format
+        output_folder: str, path to the folder where the merged files will be saved
+
+    Returns:
+        tuple of str, paths to the merged ground truth and detection JSON files in COCO format
+    '''
+    if len(gt_files) != len(detection_files):
+        raise ValueError("The number of ground truth files and detection files must be the same.")
+    merged_gt = {
+        'images': [],
+        'annotations': [],
+        'categories': []
+    }
+    merged_dt = []
+    image_id_offset = 0
+    annotation_id_offset = 0
+    for gt_file, dt_file in zip(gt_files, detection_files):
+        gt_data = load_json_file(gt_file)
+        dt_data = load_json_file(dt_file)
+        # Update image_id and annotation_id in gt_data
+        for img in gt_data['images']:
+            img['id'] += image_id_offset
+            merged_gt['images'].append(img)
+        for ann in gt_data['annotations']:
+            ann['id'] += annotation_id_offset
+            ann['image_id'] += image_id_offset
+            merged_gt['annotations'].append(ann)
+        # Update image_id in dt_data
+        for det in dt_data:
+            det['image_id'] += image_id_offset
+            merged_dt.append(det)
+        # Update offsets for next iteration
+        image_id_offset += len(gt_data['images'])
+        annotation_id_offset += len(gt_data['annotations'])
+    # Merge categories (assuming they are the same across all files)
+    merged_gt['categories'] = gt_data['categories']
+    # Save merged files
+    os.makedirs(output_folder, exist_ok=True)
+    merged_gt_file = os.path.join(output_folder, 'merged_gt.json')
+    merged_dt_file = os.path.join(output_folder, 'merged_dt.json')
+    save_json_file(merged_gt, merged_gt_file)
+    save_json_file(merged_dt, merged_dt_file)
+    return merged_gt_file, merged_dt_file
