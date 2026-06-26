@@ -1048,10 +1048,11 @@ def final_evaluation(args, main_output, log=None):
     if args.eval_detection:
         # Evaluate detection results
         start_time = time.time()
+        eval_file = os.path.join(main_output, 'final_evaluation', 'det_eval.csv')
         print_and_log('Performing final detection evaluation on all videos together...', log=log)
         final_eval_coco(
             video_outputs,
-            os.path.join(main_output, 'final_evaluation', 'det_eval.csv'),
+            eval_file,
             'gt_det_coco_format.json',
             'det_coco_format',
             os.path.join(main_output, 'final_evaluation', 'det_eval'),
@@ -1063,23 +1064,23 @@ def final_evaluation(args, main_output, log=None):
         # Evaluate tracking results
         start_time = time.time()
         print_and_log('Performing final tracking evaluation on all videos together...', log=log)
-        track_eva_file = os.path.join(main_output, 'track_eval.csv')
+        eval_file = os.path.join(main_output, 'track_eval.csv')
 
-        print_and_log('Final tracking evaluation results performed in %ds and saved in %s' % (time.time() - start_time, track_eva_file), log=log)
+        print_and_log('Final tracking evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
     if args.eval_classification:
         # Evaluate classification results
         start_time = time.time()
-        class_eval_file = os.path.join(main_output, 'class_eval.csv')
+        eval_file = os.path.join(main_output, 'class_eval.csv')
         final_eval_coco(
             video_outputs,
-            os.path.join(main_output, 'final_evaluation', 'class_eval.csv'),
+            eval_file,
             'gt_class_coco_format.json',
             'class_coco_format',
             os.path.join(main_output, 'final_evaluation', 'class_eval'),
             log=log
         )
-        print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, class_eval_file), log=log)
+        print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
 def run(**kwargs):
     '''
