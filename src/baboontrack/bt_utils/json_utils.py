@@ -1,5 +1,6 @@
 import json
 import ast
+import os
 import numpy as np
 
 class NpEncoder(json.JSONEncoder):
@@ -31,6 +32,7 @@ def save_json_file(variable, json_file, cls=NpEncoder, pretty=False):
     Returns:
         int, 1 if the file was properly saved
     '''
+    os.makedirs(os.path.dirname(json_file), exist_ok=True)
     with open(json_file, 'w') as f:
         json.dump(variable, f, cls=cls, indent=2 if pretty else None)
     return 1
