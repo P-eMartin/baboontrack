@@ -208,7 +208,7 @@ class MyClassifier:
             raise ValueError("img should be a string (path to the image) or a numpy array (the image itself)")
         return image
 
-    def train_nca(self, dataloader, epochs=10, lr=1e-4):
+    def train_nca(self, dataloader, epochs=100, lr=1e-4):
         optimizer = torch.optim.Adam(self.projection.parameters(), lr=lr)
         for epoch in range(epochs):
             total_loss = 0
@@ -313,6 +313,7 @@ class MyClassifier:
                 def __init__(self, image_paths, transform):
                     self.image_paths = []
                     self.labels = []
+                    self.class_to_idx = {label: idx for idx, label in enumerate(image_paths.keys())}
                     for label, paths in image_paths.items():
                         for path in paths:
                             self.image_paths.append(path)
@@ -324,13 +325,13 @@ class MyClassifier:
 
                 def __getitem__(self, idx):
                     img_path = self.image_paths[idx]
-                    label = self.labels[idx]
+                    label = self.class_to_idx[self.labels[idx]]
                     image = Image.open(img_path).convert("RGB")
                     image = self.transform(image)
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
             dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-            self.train_nca(dataloader, epochs=10, lr=1e-4)
+            self.train_nca(dataloader, epochs=100, lr=1e-4)
         self.database = {}
         for class_id, paths in image_paths.items():
             id_features = []
@@ -362,14 +363,14 @@ class MyClassifier:
             scores: dict, a dictionary of best scores for each class
         '''
         scores = {}
-        if self.feat_avg:
+        if self.feat_avg and len(track_feats) > 0:
             avg_track_feat = torch.stack(track_feats).mean(dim=0)
             avg_track_feat /= avg_track_feat.norm()
         for identity, ref_feats in self.database.items():
             if ref_feats is None:
                 scores[identity] = -1
                 continue
-            if self.feat_avg:
+            if self.feat_avg and len(track_feats) > 0:
                 scores[identity] = cosine_similarity(avg_track_feat, ref_feats)
             else:
                 best_score = -1
