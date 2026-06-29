@@ -106,6 +106,17 @@ A lower threshold will result in more aggressive suppression, which can help red
 Adjust this parameter based on the expected density of Baboons in the video and the desired balance between precision and recall.
 '''
 
+helptext_feat_avg = '''Use the average features for each class when classifying the detected Baboons. Default: False.
+When enabled, the classifier will compute the average feature vector for each class based on the training data and average the features of each
+track. This can help improve classification accuracy, especially in cases where the individual feature vectors may be noisy or inconsistent.
+'''
+
+helptext_nca = '''Use Neighborhood Component Analysis (NCA) for classification. Default: False.
+NCA is a dimensionality reduction technique that can be used to improve classification performance by learning a transformation of the feature space
+that maximizes the separation between classes. When enabled, the classifier will apply NCA to the feature vectors computed from the datavase and learn
+the projection that will be applied to the features of the detected Baboons before classification,
+'''
+
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
 '''
 

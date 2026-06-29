@@ -391,7 +391,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     return output_results
 
 def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu',
-             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, noid_str='NoID', log=None):
+             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, noid_str='NoID', log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -406,6 +406,9 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         class_det: str, the type of detector to use for classification (default None)
         class_det_thr: float, the threshold for detection (default 0.5)
         class_nms_thr: float, the threshold for non-maximum suppression (default 0.4)
+        feat_avg: np.ndarray, the average features for each class (default None)
+        nca: object, the Neighborhood Component Analysis object (default None)
+        noid_str: str, the string for the "NoID" class (default 'NoID')
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -431,7 +434,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, log=log)
+        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, feat_avg=feat_avg, nca=nca, log=log)
         my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
@@ -691,7 +694,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     
     # Classification
     if check_stop(log=log): return 0
-    classi_name = track_name + ('_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else '')
+    classi_name = track_name
+    classi_name += '_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
+    classi_name += '_featavg' if args.feat_avg else ''
+    classi_name += '_nca' if args.nca else ''
     class_dict = classify(
         tracking_dict,
         my_video,
@@ -702,6 +708,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         class_det=args.class_det,
         class_det_thr=args.class_det_thr,
         class_nms_thr=args.class_nms_thr,
+        feat_avg=args.feat_avg,
+        nca=args.nca,
         noid_str=noid_str,
         log=log
     )
@@ -788,12 +796,16 @@ def main_loop(args, log=None):
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['sam3']
-        class_det_types = ['primateface']
+        class_det_types = ['primateface', '']
+        feat_avg = [True, False]
+        nca = [True, False]
     else:
         det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
         prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
+        feat_avg = [True, False]
+        nca = [True, False]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -805,12 +817,21 @@ def main_loop(args, log=None):
                 args.text_prompt = prompt
                 for class_det in class_det_types:
                     args.class_det = class_det
-                    print_and_log('Running det %s%s and tracker %s%s' % (
-                        det_model,
-                        ' with prompt "%s"' % (prompt) if prompt else '',
-                        tracker_type,
-                        ' with class det %s' % (class_det) if class_det else 'without class det'), log=log)
-                    main(args, log=log)
+                    for feat in feat_avg:
+                        args.feat_avg = feat
+                        for nca_val in nca:
+                            args.nca = nca_val
+                            print_and_log('Running det %s%s and tracker %s%s' % (
+                                det_model,
+                                ' with prompt "%s"' % (prompt) if prompt else '',
+                                tracker_type,
+                                ' with classification%s%s%s' % (
+                                    ' with %s' % (class_det) if class_det else '',
+                                    ' with feat avg' if feat else '',
+                                    ' with NCA' if nca_val else ''
+                                )
+                            ), log=log)
+                            main(args, log=log)
 
 
 def split_or_empty(string):
@@ -961,6 +982,16 @@ def get_args():
         default=0.4,
         type=float,
         help=helptext_class_nms_thr
+    )
+    parser.add_argument(
+        '-f', '--feat_avg',
+        action='store_true',
+        help=helptext_feat_avg
+    )
+    parser.add_argument(
+        '-n', '--nca',
+        action='store_true',
+        help=helptext_nca
     )
     parser.add_argument(
         '-e', '--eval_detection',

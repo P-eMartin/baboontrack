@@ -130,14 +130,17 @@ class PrimateFaceDetector:
         return bboxes, scores
 
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector_type=None, det_thr=0.5, nms_thr=0.4, log=None):
+    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, log=None):
         self.log = log
         # Load the model
         # model = torch.load(model_path, map_location=device)
         self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
         # Device
+        self.device = device
         self.model.to(device)
         self.model.eval()
+        self.feat_avg = feat_avg
+        self.nca = nca
 
         # Define the transform
         self.transform = T.Compose([
@@ -159,6 +162,13 @@ class MyClassifier:
         else:
             print_and_log(f"Warning: Detector type {detector_type} not recognized. No detector will be used with the classifier.", log=self.log)
             self.det = None
+
+        if nca:
+            self.projection = torch.nn.Linear(768, 128)
+            self.projection.to(device)
+            torch.nn.init.eye_(self.projection.weight[:, :128])
+        else:
+            self.projection = None
     
     def read_image_cv2(self, img):
         '''
@@ -198,6 +208,55 @@ class MyClassifier:
             raise ValueError("img should be a string (path to the image) or a numpy array (the image itself)")
         return image
 
+    def train_nca(self, dataloader, epochs=10, lr=1e-4):
+        optimizer = torch.optim.Adam(self.projection.parameters(), lr=lr)
+        for epoch in range(epochs):
+            total_loss = 0
+            for imgs, labels in dataloader:
+                imgs = imgs.to(self.device)
+                labels = labels.to(self.device)
+                with torch.no_grad():
+                    feats = self.model(imgs)
+                    feats = feats.squeeze()
+                    feats = F.normalize(feats, dim=1)
+                feats = self.projection(feats)
+                loss = self.nca_loss(feats, labels)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            print(f"Epoch {epoch}: {total_loss:.4f}")
+    
+    def nca_loss(self, embeddings, labels, temperature=1.0):
+        """
+        embeddings: [B, D]
+        labels: [B]
+        """
+        embeddings = F.normalize(embeddings, dim=1)
+
+        dist = torch.cdist(embeddings, embeddings)  # [B,B]
+        sim = -dist / temperature
+
+        # mask self
+        eye = torch.eye(len(labels), device=labels.device)
+        sim = sim - 1e9 * eye
+
+        # softmax over neighbors
+        prob = torch.softmax(sim, dim=1)
+
+        labels = labels.unsqueeze(1)
+        same = (labels == labels.T).float()
+
+        loss = -torch.log((prob * same).sum(dim=1) + 1e-8).mean()
+        return loss
+
+    def project(self, feat):
+        if self.projection is None:
+            return feat
+        feat = self.projection(feat)
+        feat = feat / feat.norm()
+        return feat
+
     def extract_feature(self, img):
         '''
         Extract the feature of a BGR image using the model and the transform.
@@ -211,6 +270,9 @@ class MyClassifier:
         '''
         if self.det is not None:
             image = self.read_image_cv2(img)
+            if image.size == 0:
+                print_and_log("Empty image, cannot extract feature.", log=self.log)
+                return None, None
             bboxes, scores = self.det.detect(image)
             if len(bboxes) == 0:
                 return None, None
@@ -233,6 +295,8 @@ class MyClassifier:
         feat = feat.squeeze()
         # normalize
         feat = feat / feat.norm()
+        # Project if needed
+        feat = self.project(feat)
         return feat, bbox
 
     def build_database(self, image_paths):
@@ -242,17 +306,49 @@ class MyClassifier:
         Args:
             image_paths: dict, a dictionary of list of image paths, with the keys being the IDs of the images (e.g. track IDs) and the values being the list of image paths corresponding to each ID
         '''
+        if self.nca:
+            # Train the NCA projection layer on the features of the images in the database
+            from torch.utils.data import Dataset, DataLoader
+            class FeatureDataset(Dataset):
+                def __init__(self, image_paths, transform):
+                    self.image_paths = []
+                    self.labels = []
+                    for label, paths in image_paths.items():
+                        for path in paths:
+                            self.image_paths.append(path)
+                            self.labels.append(label)
+                    self.transform = transform
+
+                def __len__(self):
+                    return len(self.image_paths)
+
+                def __getitem__(self, idx):
+                    img_path = self.image_paths[idx]
+                    label = self.labels[idx]
+                    image = Image.open(img_path).convert("RGB")
+                    image = self.transform(image)
+                    return image, label
+            dataset = FeatureDataset(image_paths, self.transform)
+            dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+            self.train_nca(dataloader, epochs=10, lr=1e-4)
         self.database = {}
         for class_id, paths in image_paths.items():
-            self.database[class_id] = []
+            id_features = []
             for path in paths:
                 feature, _ = self.extract_feature(path)
                 if feature is None:
                     print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
                 else:
-                    self.database[class_id].append(feature)
-            if len(self.database[class_id]) == 0:
+                    id_features.append(feature)
+            if len(id_features) == 0:
                 print_and_log(f"Warning: No feature could be extracted for class {class_id}. This class cannot be used for classification.", log=self.log)
+                self.database[class_id] = None
+            elif self.feat_avg:
+                avg_feat = torch.stack(id_features).mean(dim=0)
+                avg_feat /= avg_feat.norm()
+                self.database[class_id] = avg_feat
+            else:
+                self.database[class_id] = id_features
 
     def get_class_scores(self, track_feats):
         '''
@@ -266,12 +362,21 @@ class MyClassifier:
             scores: dict, a dictionary of best scores for each class
         '''
         scores = {}
+        if self.feat_avg:
+            avg_track_feat = torch.stack(track_feats).mean(dim=0)
+            avg_track_feat /= avg_track_feat.norm()
         for identity, ref_feats in self.database.items():
-            best_score = -1
-            for track_feat in track_feats:
-                for ref_feat in ref_feats:
-                    score = cosine_similarity(track_feat, ref_feat)
-                    if score > best_score:
-                        best_score = score
-            scores[identity] = best_score
+            if ref_feats is None:
+                scores[identity] = -1
+                continue
+            if self.feat_avg:
+                scores[identity] = cosine_similarity(avg_track_feat, ref_feats)
+            else:
+                best_score = -1
+                for track_feat in track_feats:
+                    for ref_feat in ref_feats:
+                        score = cosine_similarity(track_feat, ref_feat)
+                        if score > best_score:
+                            best_score = score
+                scores[identity] = best_score
         return scores
