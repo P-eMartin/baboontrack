@@ -91,6 +91,12 @@
                     <a class="variable" href="#helptext_class_nms_thr">helptext_class_nms_thr</a>
             </li>
             <li>
+                    <a class="variable" href="#helptext_feat_avg">helptext_feat_avg</a>
+            </li>
+            <li>
+                    <a class="variable" href="#helptext_nca">helptext_nca</a>
+            </li>
+            <li>
                     <a class="variable" href="#helptext_loop">helptext_loop</a>
             </li>
             <li>
@@ -225,13 +231,24 @@
 </span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a><span class="s1">Adjust this parameter based on the expected density of Baboons in the video and the desired balance between precision and recall.</span>
 </span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
-</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a><span class="s1">&#39;&#39;&#39;</span>
-</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>
-</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a><span class="n">helptext_class_database</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Path to the classification dictionary. Default: &quot;/shared/group_dict&quot;.</span>
-</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a><span class="s1">The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.</span>
-</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a><span class="s1">The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.</span>
-</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a><span class="n">helptext_feat_avg</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Use the average features for each class when classifying the detected Baboons. Default: False.</span>
+</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a><span class="s1">When enabled, the classifier will compute the average feature vector for each class based on the training data and average the features of each</span>
+</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a><span class="s1">track. This can help improve classification accuracy, especially in cases where the individual feature vectors may be noisy or inconsistent.</span>
+</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a>
+</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a><span class="n">helptext_nca</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Use Neighborhood Component Analysis (NCA) for classification. Default: False.</span>
+</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a><span class="s1">NCA is a dimensionality reduction technique that can be used to improve classification performance by learning a transformation of the feature space</span>
+</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a><span class="s1">that maximizes the separation between classes. When enabled, the classifier will apply NCA to the feature vectors computed from the datavase and learn</span>
+</span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a><span class="s1">the projection that will be applied to the features of the detected Baboons before classification,</span>
+</span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>
+</span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a><span class="n">helptext_loop</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.</span>
+</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a><span class="s1">&#39;&#39;&#39;</span>
+</span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a>
+</span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a><span class="n">helptext_class_database</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;Path to the classification dictionary. Default: &quot;/shared/group_dict&quot;.</span>
+</span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a><span class="s1">The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.</span>
+</span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a><span class="s1">The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.</span>
+</span><span id="L-126"><a href="#L-126"><span class="linenos">126</span></a><span class="s1">&#39;&#39;&#39;</span>
 </span></pre></div>
 
 
@@ -488,6 +505,32 @@
         
     </div>
     <a class="headerlink" href="#helptext_class_nms_thr"></a>
+    
+    
+
+                </section>
+                <section id="helptext_feat_avg">
+                    <div class="attr variable">
+            <span class="name">helptext_feat_avg</span>        =
+<input id="helptext_feat_avg-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_feat_avg-view-value"></label><span class="default_value">&#39;Use the average features for each class when classifying the detected Baboons. Default: False.\nWhen enabled, the classifier will compute the average feature vector for each class based on the training data and average the features of each\ntrack. This can help improve classification accuracy, especially in cases where the individual feature vectors may be noisy or inconsistent.\n&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#helptext_feat_avg"></a>
+    
+    
+
+                </section>
+                <section id="helptext_nca">
+                    <div class="attr variable">
+            <span class="name">helptext_nca</span>        =
+<input id="helptext_nca-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="helptext_nca-view-value"></label><span class="default_value">&#39;Use Neighborhood Component Analysis (NCA) for classification. Default: False.\nNCA is a dimensionality reduction technique that can be used to improve classification performance by learning a transformation of the feature space\nthat maximizes the separation between classes. When enabled, the classifier will apply NCA to the feature vectors computed from the datavase and learn\nthe projection that will be applied to the features of the detected Baboons before classification,\n&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#helptext_nca"></a>
     
     
 
