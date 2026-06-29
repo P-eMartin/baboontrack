@@ -390,8 +390,30 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
+def apply_roi_factor(bbox, roi_factor):
+    '''
+    Apply the roi_factor to the bounding box.
+
+    Args:
+        bbox: list of float, the bounding box in the format [x, y, w, h]
+        roi_factor: float, the factor to scale the region of interest
+
+    Returns:
+        list of float, the scaled bounding box in the format [x, y, w, h]
+    '''
+    if roi_factor == 1.0:
+        return bbox
+    x, y, w, h = bbox
+    x_center = x + w / 2
+    y_center = y + h / 2
+    new_w = w * roi_factor
+    new_h = h * roi_factor
+    new_x = max(0, x_center - new_w / 2)
+    new_y = max(0, y_center - new_h / 2)
+    return [new_x, new_y, new_w, new_h]
+
 def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu',
-             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, noid_str='NoID', log=None):
+             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, roi_factor=1.0, noid_str='NoID', log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -408,6 +430,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         class_nms_thr: float, the threshold for non-maximum suppression (default 0.4)
         feat_avg: np.ndarray, the average features for each class (default None)
         nca: object, the Neighborhood Component Analysis object (default None)
+        roi_factor: float, the factor to scale the region of interest for feature extraction (default 1.0)
         noid_str: str, the string for the "NoID" class (default 'NoID')
         log: logger, the logger to print the information (default None)
 
@@ -457,7 +480,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
                 frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
                 idxs.append(frame_idx)
                 img = my_video.get_frame_at_idx(frame_idx)
-                x, y, w, h = det['bbox']
+                x, y, w, h = apply_roi_factor(det['bbox'], roi_factor)
                 img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
                 feature, extra_bbox = my_classifier.extract_feature(img_cropped)
                 if feature is None:
@@ -698,6 +721,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     classi_name += '_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
     classi_name += '_featavg' if args.feat_avg else ''
     classi_name += '_nca' if args.nca else ''
+    classi_name += '_roi-%.2g' % (args.roi_factor) if args.roi_factor != 1.0 else ''
     class_dict = classify(
         tracking_dict,
         my_video,
@@ -710,6 +734,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         class_nms_thr=args.class_nms_thr,
         feat_avg=args.feat_avg,
         nca=args.nca,
+        roi_factor=args.roi_factor,
         noid_str=noid_str,
         log=log
     )
@@ -799,6 +824,7 @@ def main_loop(args, log=None):
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
+        roi_factors = [1.1]
     else:
         det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
         prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
@@ -806,6 +832,7 @@ def main_loop(args, log=None):
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
+        roi_factors = [0.9, 1.0, 1.1]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -821,17 +848,20 @@ def main_loop(args, log=None):
                         args.feat_avg = feat
                         for nca_val in nca:
                             args.nca = nca_val
-                            print_and_log('Running det %s%s and tracker %s%s' % (
-                                det_model,
-                                ' with prompt "%s"' % (prompt) if prompt else '',
-                                tracker_type,
-                                ' with classification%s%s%s' % (
-                                    ' with %s' % (class_det) if class_det else '',
-                                    ' with feat avg' if feat else '',
-                                    ' with NCA' if nca_val else ''
-                                )
-                            ), log=log)
-                            main(args, log=log)
+                            for roi_factor in roi_factors:
+                                args.roi_factor = roi_factor
+                                print_and_log('Running det %s%s and tracker %s%s' % (
+                                    det_model,
+                                    ' with prompt "%s"' % (prompt) if prompt else '',
+                                    tracker_type,
+                                    ' with classification%s%s%s%s' % (
+                                        ' with %s' % (class_det) if class_det else '',
+                                        ' with feat avg' if feat else '',
+                                        ' with NCA' if nca_val else '',
+                                        ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                    )
+                                ), log=log)
+                                main(args, log=log)
 
 
 def split_or_empty(string):
@@ -992,6 +1022,12 @@ def get_args():
         '-n', '--nca',
         action='store_true',
         help=helptext_nca
+    )
+    parser.add_argument(
+        '-F', '--roi_factor',
+        default=1.0,
+        type=float,
+        help=helptext_roi_factor
     )
     parser.add_argument(
         '-e', '--eval_detection',
