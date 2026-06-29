@@ -536,13 +536,15 @@ def find_file_with_ending(file_path, endings):
     Returns:
         str or None, the path to the found file or None if not found
     '''
+    name = os.path.basename(file_path)
+    folder = os.path.dirname(file_path)
     if os.path.isfile(file_path):
         return file_path
-    elif os.path.isdir(file_path):
+    elif os.path.isdir(folder):
         for ending in endings:
-            for root, dirs, files in os.walk(file_path):
+            for root, dirs, files in os.walk(folder):
                 for file in files:
-                    if file.endswith(ending):
+                    if file.endswith(name+ending):
                         return os.path.join(root, file)
     return None
 
@@ -572,6 +574,9 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             print_and_log('Error: input %s must be a file or a folder' % (args.input_video), log=log, to_print=False)
             raise ValueError('No input provided.')
         my_video = VideoFrameIterator(args.input_video, log=log)
+    if len(my_video) == 0:
+        print_and_log('Input %s is empty. Skipping.' % (args.input_video), log=log, to_print=False)
+        return 0
     image_size = my_video.get_image_size()
     print_and_log('Video %s opened with resolution %s and %d frames.' % (my_video.path, str(image_size), len(my_video)), log=log)
 
@@ -579,7 +584,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     if (args.eval_detection or args.eval_tracking or args.eval_classification):
         # If Gt file not provided, try to find it using video name + .zip or + _MOT.zip
         if gt_file_class_mot is None:
-            gt_file_class_mot = find_file_with_ending(args.input_video, ['.zip', '_MOT.zip'])
+            gt_file_class_mot = find_file_with_ending(my_video.path[:-4], ['.zip', '_MOT.zip'])
         if gt_file_class_mot is None:
             print_and_log('No ground truth file found for evaluation. Skipping evaluation.', log=log)
         else:
@@ -618,7 +623,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         save_json_file(gt_dict_coco_det, gt_det_coco_file.replace('.json', '.pretty.json'), pretty=True)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
-            os.path.join(args.output, 'det_coco_format', '%s.json' % det_name),
+            os.path.join(args.output, 'det_coco_format', det_name),
             image_size=image_size,
             labels=labels_detection,
             boundaries=boundaries
@@ -714,7 +719,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         uniform_class_list = solve_id_conflicts(class_dict['detections'], classes, gt_labels, default_label=noid_str, log=log)
         class_coco_file = save_coco_format(
             uniform_class_list,
-            os.path.join(args.output, 'class_coco_format', '%s.json' % (classi_name)),
+            os.path.join(args.output, 'class_coco_format', classi_name),
             image_size=image_size,
             labels=classes,
             boundaries=boundaries
@@ -767,6 +772,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         if check_stop(log=log): return 0
 
     print_and_log("Processing of %s finished in %ds." % (my_video.path, time.time()-start_time), log=log)
+    return 1
 
 def main_loop(args, log=None):
     '''
@@ -788,8 +794,6 @@ def main_loop(args, log=None):
         prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
-    gt_files_name = [os.path.join(os.path.dirname(args.input_video), name) for name in ['frame-1-546-1639-2000-mot.zip', 'frame-1639-2000-mot.zip', 'frame-1-546-mot.zip']]
-    gt_files_name = ['/home/pemartin/shared/anotated_data/bungalow_08-06-35_MOT.zip']
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -806,8 +810,7 @@ def main_loop(args, log=None):
                         ' with prompt "%s"' % (prompt) if prompt else '',
                         tracker_type,
                         ' with class det %s' % (class_det) if class_det else 'without class det'), log=log)
-                    for gt_file_class_mot in gt_files_name:
-                        main(args, gt_file_class_mot=gt_file_class_mot, log=log)
+                    main(args, log=log)
 
 
 def split_or_empty(string):
@@ -1065,6 +1068,33 @@ def final_evaluation(args, main_output, log=None):
         start_time = time.time()
         print_and_log('Performing final tracking evaluation on all videos together...', log=log)
         eval_file = os.path.join(main_output, 'track_eval.csv')
+        gt_file_per_video = {}
+        pred_files_per_method_per_video = {}
+        for video_output in video_outputs:
+            gt_file = os.path.join(video_output, 'gt_track_mot_format')
+            pred_root = os.path.join(video_output, 'track_mot_format')
+            if not os.path.exists(gt_file) or 'mot.zip' not in os.listdir(gt_file):
+                print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
+                continue
+            gt_file_per_video[video_output] = gt_file
+            for method_name in os.listdir(pred_root):
+                if not os.path.isfile(os.path.join(pred_root, method_name, 'mot.zip')):
+                    print_and_log('No prediction file found for method %s in video %s. Skipping evaluation for this method and video.' % (method_name, video_output), log=log)
+                    continue
+                if method_name not in pred_files_per_method_per_video:
+                    pred_files_per_method_per_video[method_name] = {}
+                pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_root, method_name)
+        video_keys = list(gt_file_per_video.keys())
+        gt_files = [gt_file_per_video[video_key] for video_key in video_keys]
+        for method_name in pred_files_per_method_per_video:
+            pred_folders = [pred_files_per_method_per_video[method_name][video_key] for video_key in video_keys]
+            eval_results = evaluate_tracking(
+                gt_files,
+                pred_folders,
+                name=method_name,
+                save_path=eval_file,
+            )
+            print_and_log('\tMethod %s: %s' % (method_name, str(eval_results)), log=log)
 
         print_and_log('Final tracking evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
