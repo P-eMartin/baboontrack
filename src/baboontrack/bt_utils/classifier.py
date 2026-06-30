@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import os
 import cv2
 from .primateface import PrimateFace
-from .img_utils import print_and_log
+from .img_utils import print_and_log, apply_roi_factor
 
 def avg_features(track_features):
     '''
@@ -130,7 +130,7 @@ class PrimateFaceDetector:
         return bboxes, scores
 
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, log=None):
+    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, epochs=100, lr=1e-4, roi_factor=1.0, log=None):
         self.log = log
         # Load the model
         # model = torch.load(model_path, map_location=device)
@@ -141,6 +141,9 @@ class MyClassifier:
         self.model.eval()
         self.feat_avg = feat_avg
         self.nca = nca
+        self.epochs = epochs
+        self.lr = lr
+        self.roi_factor = roi_factor
 
         # Define the transform
         self.transform = T.Compose([
@@ -169,6 +172,11 @@ class MyClassifier:
             torch.nn.init.eye_(self.projection.weight[:, :128])
         else:
             self.projection = None
+        self.name = 'MyClassifier' \
+            + ('_primateface_%g_%g' % (det_thr, nms_thr) if detector_type == 'primateface' else '') \
+            + ('_NCA' if nca else '') + ('_featavg' if feat_avg else '') \
+            + ('_roi%g' % roi_factor if roi_factor != 1.0 else '')
+        
     
     def read_image_cv2(self, img):
         '''
@@ -208,7 +216,13 @@ class MyClassifier:
             raise ValueError("img should be a string (path to the image) or a numpy array (the image itself)")
         return image
 
-    def train_nca(self, dataloader, epochs=100, lr=1e-4):
+    def train_nca(self, dataloader, epochs=100, lr=1e-4, saved_folder=os.path.join('.tmp', 'nca')):
+        # Load the projection layer if it exists
+        path_weights = os.path.join(saved_folder, f"{self.name}.pt")
+        if os.path.exists(path_weights):
+            self.projection.load_state_dict(torch.load(path_weights, map_location=self.device))
+            print_and_log(f"Loaded NCA projection layer from {path_weights}", log=self.log)
+            return
         optimizer = torch.optim.Adam(self.projection.parameters(), lr=lr)
         for epoch in range(epochs):
             total_loss = 0
@@ -226,6 +240,8 @@ class MyClassifier:
                 optimizer.step()
                 total_loss += loss.item()
             print(f"Epoch {epoch}: {total_loss:.4f}")
+        # Save nca in .tmp folder to avoid retraining if the same model is used again
+        torch.save(self.projection.state_dict(), path_weights)
     
     def nca_loss(self, embeddings, labels, temperature=1.0):
         """
@@ -278,7 +294,7 @@ class MyClassifier:
                 return None, None
             # Take the bbox with the highest score
             best_idx = np.argmax(scores)
-            x1, y1, x2, y2 = bboxes[best_idx]
+            x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor)
             # max, min and closest integer
             x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
             image = self.read_image_pil(image[y1:y2, x1:x2])
@@ -331,7 +347,7 @@ class MyClassifier:
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
             dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-            self.train_nca(dataloader, epochs=100, lr=1e-4)
+            self.train_nca(dataloader, epochs=self.epochs, lr=self.lr)
         self.database = {}
         for class_id, paths in image_paths.items():
             id_features = []

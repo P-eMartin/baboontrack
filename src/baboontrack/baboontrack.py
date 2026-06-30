@@ -22,7 +22,7 @@ print('PyTorch version: %s' % (torch.__version__))
 # Utility functions
 from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision
 from .bt_utils.json_utils import save_json_file, load_json_file
-from .bt_utils.img_utils import VideoFrameIterator
+from .bt_utils.img_utils import VideoFrameIterator, apply_roi_factor
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
     save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_coco_formats, \
@@ -391,28 +391,6 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
-def apply_roi_factor(bbox, roi_factor):
-    '''
-    Apply the roi_factor to the bounding box.
-
-    Args:
-        bbox: list of float, the bounding box in the format [x, y, w, h]
-        roi_factor: float, the factor to scale the region of interest
-
-    Returns:
-        list of float, the scaled bounding box in the format [x, y, w, h]
-    '''
-    if roi_factor == 1.0:
-        return bbox
-    x, y, w, h = bbox
-    x_center = x + w / 2
-    y_center = y + h / 2
-    new_w = w * roi_factor
-    new_h = h * roi_factor
-    new_x = max(0, x_center - new_w / 2)
-    new_y = max(0, y_center - new_h / 2)
-    return [new_x, new_y, new_w, new_h]
-
 def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, roi_factor=1.0, noid_str='NoID', log=None):
     '''
@@ -458,7 +436,7 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, feat_avg=feat_avg, nca=nca, log=log)
+        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, feat_avg=feat_avg, nca=nca, roi_factor=roi_factor, log=log)
         my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
@@ -1122,7 +1100,7 @@ def final_evaluation(args, main_output, log=None):
     if args.eval_detection:
         # Evaluate detection results
         start_time = time.time()
-        eval_file = os.path.join(main_output, 'final_evaluation', 'det_eval.csv')
+        eval_file = os.path.join(main_output, 'det_eval.csv')
         print_and_log('Performing final detection evaluation on all videos together...', log=log)
         final_eval_coco(
             video_outputs,
@@ -1138,7 +1116,7 @@ def final_evaluation(args, main_output, log=None):
         # Evaluate tracking results
         start_time = time.time()
         print_and_log('Performing final tracking evaluation on all videos together...', log=log)
-        eval_file = os.path.join(main_output, 'final_evaluation', 'track_eval.csv')
+        eval_file = os.path.join(main_output, 'track_eval.csv')
         gt_file_per_video = {}
         pred_files_per_method_per_video = {}
         for video_output in video_outputs:
@@ -1215,11 +1193,11 @@ def run(**kwargs):
         else:
             main_input = copy.deepcopy(args.input_video)
             main_output = copy.deepcopy(args.output)
-            # input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            # for input_path in input_list:
-            #     args.input_video = input_path
-            #     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
-            #     main_funct(args, log=log)
+            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            for input_path in input_list:
+                args.input_video = input_path
+                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+                main_funct(args, log=log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)

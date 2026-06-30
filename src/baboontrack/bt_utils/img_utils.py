@@ -688,6 +688,27 @@ def get_bbox(bbox, bbox_format='xywh', bbox_normalized=True, image_size=None):
         y2 = int(y2 * image_size[0])
     return [x1, y1, x2, y2]
 
+def apply_roi_factor(bbox, roi_factor):
+    '''
+    Apply the roi_factor to the bounding box.
+
+    Args:
+        bbox: list of float, the bounding box in the format [x, y, w, h]
+        roi_factor: float, the factor to scale the region of interest
+
+    Returns:
+        list of float, the scaled bounding box in the format [x, y, w, h]
+    '''
+    if roi_factor == 1.0:
+        return bbox
+    x, y, w, h = bbox
+    x_center = x + w / 2
+    y_center = y + h / 2
+    new_w = w * roi_factor
+    new_h = h * roi_factor
+    new_x = max(0, x_center - new_w / 2)
+    new_y = max(0, y_center - new_h / 2)
+    return [new_x, new_y, new_w, new_h]
     
 def write_text(frame, text, position, fontscale, color_text=None, color_bg=None, thickness=1, font=cv2.FONT_HERSHEY_SIMPLEX):
     '''
