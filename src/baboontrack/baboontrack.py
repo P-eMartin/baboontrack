@@ -392,7 +392,8 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     return output_results
 
 def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu',
-             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, roi_factor=1.0, noid_str='NoID', log=None):
+             class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
+             noid_str='NoID', log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -409,6 +410,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         class_nms_thr: float, the threshold for non-maximum suppression (default 0.4)
         feat_avg: np.ndarray, the average features for each class (default None)
         nca: object, the Neighborhood Component Analysis object (default None)
+        epochs: int, the number of epochs for training (default 100)
+        lr: float, the learning rate for training (default 1e-4)
         roi_factor: float, the factor to scale the region of interest for feature extraction (default 1.0)
         noid_str: str, the string for the "NoID" class (default 'NoID')
         log: logger, the logger to print the information (default None)
@@ -436,7 +439,8 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr, feat_avg=feat_avg, nca=nca, roi_factor=roi_factor, log=log)
+        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
+                                     feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_factor=roi_factor, log=log)
         my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
@@ -697,10 +701,10 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     # Classification
     if check_stop(log=log): return 0
     classi_name = track_name
-    classi_name += '_%s-thr-%.2f-nms-%.2f' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
+    classi_name += '_%s-thr-%g-nms-%g' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
     classi_name += '_featavg' if args.feat_avg else ''
-    classi_name += '_nca' if args.nca else ''
-    classi_name += '_roi-%.2g' % (args.roi_factor) if args.roi_factor != 1.0 else ''
+    classi_name += '_nca_%d-%g' % (args.epochs, args.lr) if args.nca else ''
+    classi_name += '_roi-%g' % (args.roi_factor) if args.roi_factor != 1.0 else ''
     class_dict = classify(
         tracking_dict,
         my_video,
@@ -713,6 +717,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         class_nms_thr=args.class_nms_thr,
         feat_avg=args.feat_avg,
         nca=args.nca,
+        epochs=args.epochs,
+        lr=args.lr,
         roi_factor=args.roi_factor,
         noid_str=noid_str,
         log=log
@@ -803,6 +809,8 @@ def main_loop(args, log=None):
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
+        epochs = [100]
+        lr = [1e-4]
         roi_factors = [1.1]
     else:
         det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
@@ -811,6 +819,8 @@ def main_loop(args, log=None):
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
+        epochs = [10, 100]
+        lr = [1e-3, 1e-4]
         roi_factors = [0.9, 1.0, 1.1]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
@@ -825,22 +835,26 @@ def main_loop(args, log=None):
                     args.class_det = class_det
                     for feat in feat_avg:
                         args.feat_avg = feat
-                        for nca_val in nca:
-                            args.nca = nca_val
-                            for roi_factor in roi_factors:
-                                args.roi_factor = roi_factor
-                                print_and_log('Running det %s%s and tracker %s%s' % (
-                                    det_model,
-                                    ' with prompt "%s"' % (prompt) if prompt else '',
-                                    tracker_type,
-                                    ' with classification%s%s%s%s' % (
-                                        ' with %s' % (class_det) if class_det else '',
-                                        ' with feat avg' if feat else '',
-                                        ' with NCA' if nca_val else '',
-                                        ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                    )
-                                ), log=log)
-                                main(args, log=log)
+                        for roi_factor in roi_factors:
+                            args.roi_factor = roi_factor
+                            for nca_val in nca:
+                                args.nca = nca_val
+                                for epoch in epochs if nca_val else [0]:
+                                    args.epochs = epoch
+                                    for lr_val in lr if nca_val else [0]:
+                                        args.lr = lr_val
+                                    print_and_log('Running det %s%s and tracker %s%s' % (
+                                        det_model,
+                                        ' with prompt "%s"' % (prompt) if prompt else '',
+                                        tracker_type,
+                                        ' with classification%s%s%s%s' % (
+                                            ' with %s' % (class_det) if class_det else '',
+                                            ' with feat avg' if feat else '',
+                                            ' with NCA using epochs=%d, lr=%.0e' % (args.epochs, args.lr) if nca_val else '',
+                                            ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                        )
+                                    ), log=log)
+                                    main(args, log=log)
 
 
 def split_or_empty(string):
@@ -1001,6 +1015,18 @@ def get_args():
         '-n', '--nca',
         action='store_true',
         help=helptext_nca
+    )
+    parser.add_argument(
+        '--epochs',
+        default=100,
+        type=int,
+        help=helptext_epochs
+    )
+    parser.add_argument(
+        '--lr',
+        default=1e-4,
+        type=float,
+        help=helptext_lr
     )
     parser.add_argument(
         '-F', '--roi_factor',

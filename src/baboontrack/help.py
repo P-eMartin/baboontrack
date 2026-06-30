@@ -117,6 +117,12 @@ that maximizes the separation between classes. When enabled, the classifier will
 the projection that will be applied to the features of the detected Baboons before classification,
 '''
 
+helptext_epochs = '''Number of epochs for training the classifier. Default: 100.
+'''
+
+helptext_lr = '''Learning rate for training the classifier. Default: 1e-4.
+'''
+
 helptext_roi_factor = '''Region of interest (ROI) factor for increasing or decreasing the size of the bounding boxes used for classification. Default: 1.0.
 This factor is used to scale the bounding boxes of the detected Baboons before they are passed to the classifier. A factor greater than 1.0 will increase
 the size of the bounding boxes, potentially including more context around the Baboons (or its face), while a factor less than 1.0 will decrease the size of

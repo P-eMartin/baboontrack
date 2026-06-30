@@ -174,7 +174,7 @@ class MyClassifier:
             self.projection = None
         self.name = 'MyClassifier' \
             + ('_primateface_%g_%g' % (det_thr, nms_thr) if detector_type == 'primateface' else '') \
-            + ('_NCA' if nca else '') + ('_featavg' if feat_avg else '') \
+            + ('_NCA_%d-%g' % (epochs, lr) if nca else '') + ('_featavg' if feat_avg else '') \
             + ('_roi%g' % roi_factor if roi_factor != 1.0 else '')
         
     
@@ -219,6 +219,7 @@ class MyClassifier:
     def train_nca(self, dataloader, epochs=100, lr=1e-4, saved_folder=os.path.join('.tmp', 'nca')):
         # Load the projection layer if it exists
         path_weights = os.path.join(saved_folder, f"{self.name}.pt")
+        os.makedirs(saved_folder, exist_ok=True)
         if os.path.exists(path_weights):
             self.projection.load_state_dict(torch.load(path_weights, map_location=self.device))
             print_and_log(f"Loaded NCA projection layer from {path_weights}", log=self.log)
