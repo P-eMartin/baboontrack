@@ -335,16 +335,29 @@ def save_mot_format(detection_dict, output_path, image_size=None, labels=None, b
                 continue
             dets = detection_dict[dets_or_key]
             for det in dets:
-                mot_dict['frame_id'].append(dets_or_key + frame_id_offset -1)
-                mot_dict['track_id'].append(det['track_id'])
-                mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
-                mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
-                mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
-                mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
-                mot_dict['not ignored'].append(det.get('not_ignored', 1))
-                mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'])
-                mot_dict['visibility'].append(det.get('visibility', 1))
-                mot_dict['skipped'].append(det.get('skipped', 0))
+                if isinstance(det, dict):
+                    mot_dict['frame_id'].append(dets_or_key + frame_id_offset -1)
+                    mot_dict['track_id'].append(det['track_id'])
+                    mot_dict['x'].append(int(det['bbox'][0] * image_size[0]) if image_size is not None else det['bbox'][0])
+                    mot_dict['y'].append(int(det['bbox'][1] * image_size[1]) if image_size is not None else det['bbox'][1])
+                    mot_dict['w'].append(int(det['bbox'][2] * image_size[0]) if image_size is not None else det['bbox'][2])
+                    mot_dict['h'].append(int(det['bbox'][3] * image_size[1]) if image_size is not None else det['bbox'][3])
+                    mot_dict['not ignored'].append(det.get('not_ignored', 1))
+                    mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else det['category_id'])
+                    mot_dict['visibility'].append(det.get('visibility', 1))
+                    mot_dict['skipped'].append(det.get('skipped', 0))
+                elif isinstance(det, list):
+                    for _det in det:
+                        mot_dict['frame_id'].append(dets_or_key + frame_id_offset -1)
+                        mot_dict['track_id'].append(_det['track_id'])
+                        mot_dict['x'].append(int(_det['bbox'][0] * image_size[0]) if image_size is not None else _det['bbox'][0])
+                        mot_dict['y'].append(int(_det['bbox'][1] * image_size[1]) if image_size is not None else _det['bbox'][1])
+                        mot_dict['w'].append(int(_det['bbox'][2] * image_size[0]) if image_size is not None else _det['bbox'][2])
+                        mot_dict['h'].append(int(_det['bbox'][3] * image_size[1]) if image_size is not None else _det['bbox'][3])
+                        mot_dict['not ignored'].append(_det.get('not_ignored', 1))
+                        mot_dict['class_id'].append(cat_id_override if cat_id_override is not None else _det['category_id'])
+                        mot_dict['visibility'].append(_det.get('visibility', 1))
+                        mot_dict['skipped'].append(_det.get('skipped', 0))
         else: # Case when detection_dict is a list of dictionaries (in COCO format)
             det = dets_or_key
             if boundaries and not (any(start <= det['image_id']-1 <= end for start, end in boundaries)):
@@ -391,7 +404,7 @@ def load_mot_format(input_file, boundaries=None, log=None):
 
             detection_dict[frame_id].append({
                 "id": idx+1,
-                "track_id": int(row[1]) - 1,
+                "track_id": int(row[1]),
                 "bbox": [
                     max(int(float(row[2])), 0),
                     max(int(float(row[3])), 0),
@@ -675,23 +688,27 @@ def mot_eval(gt_file, tracking_file):
     Returns:
         dict, the evaluation results
     """
-    if os.path.isdir(gt_file) and os.path.isdir(tracking_file):
-        # If both are directories, evaluate each pair of files and average the results
-        gt_files = sorted([os.path.join(gt_file, f) for f in os.listdir(gt_file) if f.endswith('.txt')])
-        tracking_files = sorted([os.path.join(tracking_file, f) for f in os.listdir(tracking_file) if f.endswith('.txt')])
-        if len(gt_files) != len(tracking_files):
-            raise ValueError("The number of ground truth files and tracking files must be the same.")
-        data_root = gt_file
-        for idx, gt_f, tr_f in enumerate(zip(gt_files, tracking_files)):
+    if isinstance(gt_file, list) and isinstance(tracking_file, list):
+        print("Warning: this works only if track_id are updated properly across sequences (not overlapping ids) unless the files are meant to be evaluated together. If not, the evaluation will be incorrect.")
+        # If both are lists, evaluate each pair of files and average the results
+        if len(gt_file) != len(tracking_file):
+            print("Length of gt_file and tracking_file lists are not the same. Skipping evaluation.")
+            return {}
+        elif len(gt_file) == 0:
+            print("gt_file and tracking_file lists are empty. Skipping evaluation.")
+            return {}
+        for idx, (gt_f, tr_f) in enumerate(zip(gt_file, tracking_file)):
+            data_root = os.path.dirname(gt_f)
             seq_name = os.path.basename(gt_f).split('.')[0]
             if idx == 0:
                 # Initialize the evaluator with the first sequence
                 evaluator = Evaluator(data_root, seq_name, data_type="mot")
             else:
                 # Update the evaluator with the next sequence
+                evaluator.data_root = data_root
                 evaluator.seq_name = seq_name
                 evaluator.load_annotations()
-            eval_results = evaluator.eval_file(tr_f)
+            eval_results = evaluator.eval_file(os.path.join(tr_f, 'gt', 'gt.txt') if os.path.isdir(tr_f) else tr_f, reset_accumulator=False)
     else:
         data_root = os.path.dirname(gt_file)
         seq_name = os.path.basename(gt_file).split('.')[0]
@@ -739,6 +756,56 @@ def evaluate_tracking(gt_file, tracking_file, save_path=None, name=None, extra_i
             extra_info=extra_info
         )
     return metrics
+
+def merge_mot_formats(gt_files, pred_mot_files, output_folder):
+    '''
+    Merge multiple MOT-format files into a single MOT-format file to be able to evaluate
+    a whole dataset at once. The merged file will be saved in the output_folder.
+    The track_id and frame_id will be updated accordingly to avoid conflicts.
+    We need both gt_files and pred_mot_files in order to be able to modify properly the track_id and frame_id in the merged file.
+
+    Args:
+        gt_files: list of str, paths to the ground truth MOT-format files (can be zip files, folders containing gt/gt.txt, or gt.txt files)
+        pred_mot_files: list of str, paths to the prediction MOT-format files (can be zip files, folders containing pred/pred.txt, or pred.txt files)
+        output_folder: str, path to the folder where the merged file will be saved
+
+    Returns:
+        list of str, paths to the merged MOT-format files
+    '''
+    if len(gt_files) != len(pred_mot_files):
+        raise ValueError("The number of ground truth files and prediction files must be the same.")
+    merged_gt = defaultdict(list)
+    merged_pred = defaultdict(list)
+    track_id_offset_gt = 0
+    track_id_offset_pred = 0
+    frame_id_offset = 0
+    for gt_file, pred_file in zip(gt_files, pred_mot_files):
+        gt_dict, _ = load_mot_format(gt_file)
+        pred_dict, _ = load_mot_format(pred_file)
+        # Update track_id and frame_id in gt_dict
+        if frame_id_offset > 0 and track_id_offset_gt > 0:
+            for frame_id, dets in gt_dict.items():
+                for det in dets:
+                    det['track_id'] += track_id_offset_gt
+        # Update track_id and frame_id in pred_dict
+        if frame_id_offset > 0 and track_id_offset_pred > 0:
+            for frame_id, dets in pred_dict.items():
+                for det in dets:
+                    det['track_id'] += track_id_offset_pred
+        for frame_id, dets in gt_dict.items():
+            merged_gt[frame_id+frame_id_offset].append(dets)
+        for frame_id, dets in pred_dict.items():
+            merged_pred[frame_id+frame_id_offset].append(dets)
+        # Update offsets for next iteration
+        frame_id_offset = max(max(merged_gt.keys(), default=0), max(merged_pred.keys(), default=0)) + 1
+        track_id_offset_gt += max([det['track_id'] for dets in gt_dict.values() for det in dets], default=0) + 1
+        track_id_offset_pred += max([det['track_id'] for dets in pred_dict.values() for det in dets], default=0) + 1
+    # Save merged files
+    merged_gt_path = os.path.join(output_folder, 'merged_gt')
+    merged_pred_path = os.path.join(output_folder, 'merged_pred')
+    save_mot_format(merged_gt, merged_gt_path)
+    merged_pred_file = save_mot_format(merged_pred, merged_pred_path)
+    return merged_gt_path, merged_pred_file
 
 def merge_coco_formats(gt_files, detection_files, output_folder):
     '''

@@ -25,7 +25,8 @@ from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
-    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_coco_formats
+    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_coco_formats, \
+    merge_mot_formats
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
 from .bt_utils.classifier import MyClassifier, build_image_paths_dict, resolve_class_assignments
 
@@ -1084,13 +1085,16 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
         if not os.path.exists(gt_file):
             print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
             continue
-        pred_files = [os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) if f.endswith('.json')]
+        pred_files = [
+            os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) \
+                if os.path.isfile(os.path.join(video_output, preds_folder_name, f, 'detections.json'))
+        ]
         gt_file_per_video[video_output] = gt_file
         for pred_file in pred_files:
             method_name = os.path.splitext(os.path.basename(pred_file))[0]
             if method_name not in pred_files_per_method_per_video:
                 pred_files_per_method_per_video[method_name] = {}
-            pred_files_per_method_per_video[method_name][video_output] = pred_file
+            pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_file, 'detections.json')
     for method_name in pred_files_per_method_per_video:
         gt_file, method_pred = merge_coco_formats(
             gt_file_per_video.values(),
@@ -1134,7 +1138,7 @@ def final_evaluation(args, main_output, log=None):
         # Evaluate tracking results
         start_time = time.time()
         print_and_log('Performing final tracking evaluation on all videos together...', log=log)
-        eval_file = os.path.join(main_output, 'track_eval.csv')
+        eval_file = os.path.join(main_output, 'final_evaluation', 'track_eval.csv')
         gt_file_per_video = {}
         pred_files_per_method_per_video = {}
         for video_output in video_outputs:
@@ -1155,9 +1159,11 @@ def final_evaluation(args, main_output, log=None):
         gt_files = [gt_file_per_video[video_key] for video_key in video_keys]
         for method_name in pred_files_per_method_per_video:
             pred_folders = [pred_files_per_method_per_video[method_name][video_key] for video_key in video_keys]
+            merge_folder = os.path.join(main_output, 'final_evaluation', 'track_mot_format', method_name)
+            gt_merge, pred_merge = merge_mot_formats(gt_files, pred_folders, merge_folder)
             eval_results = evaluate_tracking(
-                gt_files,
-                pred_folders,
+                gt_merge,
+                pred_merge,
                 name=method_name,
                 save_path=eval_file,
             )
@@ -1209,11 +1215,11 @@ def run(**kwargs):
         else:
             main_input = copy.deepcopy(args.input_video)
             main_output = copy.deepcopy(args.output)
-            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            for input_path in input_list:
-                args.input_video = input_path
-                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
-                main_funct(args, log=log)
+            # input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            # for input_path in input_list:
+            #     args.input_video = input_path
+            #     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+            #     main_funct(args, log=log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)
