@@ -1181,6 +1181,9 @@ def final_evaluation(args, main_output, log=None):
         video_keys = list(gt_file_per_video.keys())
         gt_files = [gt_file_per_video[video_key] for video_key in video_keys]
         for method_name in pred_files_per_method_per_video:
+            if len(pred_files_per_method_per_video[method_name]) != len(gt_file_per_video):
+                print_and_log('Method %s does not have predictions for all videos. Skipping evaluation for this method.' % (method_name), log=log)
+                continue
             pred_folders = [pred_files_per_method_per_video[method_name][video_key] for video_key in video_keys]
             merge_folder = os.path.join(main_output, 'final_evaluation', 'track_mot_format', method_name)
             gt_merge, pred_merge = merge_mot_formats(gt_files, pred_folders, merge_folder)

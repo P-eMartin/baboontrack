@@ -347,7 +347,7 @@ class MyClassifier:
                     image = self.transform(image)
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
-            dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+            dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
             self.train_nca(dataloader, epochs=self.epochs, lr=self.lr)
         self.database = {}
         for class_id, paths in image_paths.items():
