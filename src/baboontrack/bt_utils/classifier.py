@@ -348,6 +348,8 @@ class MyClassifier:
                     image = self.transform(image)
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
+            # Set seed for reproducibility
+            torch.manual_seed(42)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=len(dataset) > batch_size)
             self.train_nca(dataloader, epochs=self.epochs, lr=self.lr)
         self.database = {}
