@@ -1101,13 +1101,19 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
                 pred_files_per_method_per_video[method_name] = {}
             pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_file, 'detections.json')
     for method_name in pred_files_per_method_per_video:
+        # Skip methods that do not have predictions for all videos
+        if len(pred_files_per_method_per_video[method_name]) != len(gt_file_per_video):
+            print_and_log('Method %s does not have predictions for all videos. Skipping evaluation for this method.' % (method_name), log=log)
+            continue
         gt_file, method_pred = merge_coco_formats(
             gt_file_per_video.values(),
             pred_files_per_method_per_video[method_name].values(),
             os.path.join(output_merges, '%s_merged.json' % (method_name)),
         )
+        categories = {c['id']: c['name'] for c in load_json_file(gt_file)['categories']}
         if ignore_noid:
-            ignore_classes = [gt['id'] for gt in load_json_file(gt_file)['categories'] if gt['name'] == 'NoID']
+            # Get the key of the "NoID" class from categories
+            ignore_classes = [k for k, v in categories.items() if v == 'NoID']
         else:
             ignore_classes = []
         eval_results = evaluate_detection(
@@ -1116,11 +1122,14 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             name='%s' % (method_name),
             save_path=eval_file,
             ignore_classes=ignore_classes,
-            cm=True,
+            cm=cm,
         )
-        cm_path = os.path.join(output_merges, 'confusion_matrix', '%s.png' % (method_name))
-        os.makedirs(os.path.dirname(cm_path), exist_ok=True)
-        plot_confusion_matrix(eval_results['cm'][1], eval_results['cm'][0], cm_path)
+        if cm:
+            cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))
+            os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+            conf_matrix = eval_results['cm'][0]
+            c_idxs = eval_results['cm'][1]
+            plot_confusion_matrix(conf_matrix, [categories[i] if i in categories else i for i in c_idxs], cm_path)
         print_and_log('\tMethod %s: %s' % (method_name, str({k: v for k, v in eval_results.items() if k != 'cm'})), log=log)
 
 def final_evaluation(args, main_output, log=None):
@@ -1231,11 +1240,11 @@ def run(**kwargs):
         else:
             main_input = copy.deepcopy(args.input_video)
             main_output = copy.deepcopy(args.output)
-            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            for input_path in input_list:
-                args.input_video = input_path
-                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
-                main_funct(args, log=log)
+            # input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            # for input_path in input_list:
+            #     args.input_video = input_path
+            #     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+            #     main_funct(args, log=log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)

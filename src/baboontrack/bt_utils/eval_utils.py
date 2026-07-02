@@ -204,7 +204,7 @@ class myCOCOeval(COCOeval):
                 #     continue
                 gt_idx = cat_to_idx[g["category_id"]]
                 cm[gt_idx, -1] += 1
-        labels = cat_ids + ["FN"]
+        labels = cat_ids + ["FP/FN"]
         return cm, labels
 
 '''
