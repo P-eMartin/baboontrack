@@ -499,3 +499,50 @@ def generate_colormap_with_legend(min_val=0, max_val=1, width=50, height=720, fo
         position = (5, int(height - (i * (height / num_steps))))
         cv2.putText(colormap_jet, text, position, font, fontsize / 30, (255, 255, 255), 1, cv2.LINE_AA)
     return colormap_jet
+
+def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix with both numbers and percentages.
+    """
+    
+    # Calculate accuracy
+    acc = np.trace(cm) / np.sum(cm) * 100 if np.sum(cm) != 0 else 0
+    
+    # Normalize the confusion matrix for colormapping
+    cm_normalized = (cm.T / np.maximum(cm.sum(axis=1), 1)).T
+    
+    # Calculate mean and standard deviation for normalized diagonal
+    acc_2 = np.diag(cm_normalized)
+    mean_acc = np.mean(acc_2) * 100
+    std_acc = np.std(acc_2) * 100
+    
+    title = f'Accuracy of {acc:.1f}%\n$\\mu$ = {mean_acc:.1f} with $\\sigma$ = {std_acc:.1f}'
+    
+    # Set figure size based on number of classes
+    if len(classes) >= 12:
+        plt.figure(figsize=(12, 12))
+    elif len(classes) >= 6:
+        plt.figure(figsize=(8, 8))
+    else:
+        plt.figure(figsize=(5, 5))
+
+    plt.imshow(cm_normalized, interpolation='nearest', cmap=cmap, vmin=0, vmax=1)
+    plt.title(title, fontsize=16)
+    plt.colorbar(fraction=0.046, pad=0.04)
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90, fontsize=14)
+    plt.yticks(tick_marks, classes, fontsize=14)
+
+    # Add text annotations
+    thresh = cm_normalized.max() / 2.
+    for i, j in np.ndindex(cm.shape):
+        plt.text(j, i, f'{cm[i, j]}\n{cm_normalized[i, j] * 100:.1f}%',
+                 horizontalalignment="center",
+                 verticalalignment="center",
+                 color="white" if cm_normalized[i, j] > thresh else "black")
+
+    plt.ylabel('True label', fontsize=14)
+    plt.xlabel('Predicted label', fontsize=14)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close('all')

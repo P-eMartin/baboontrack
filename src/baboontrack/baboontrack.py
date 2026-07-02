@@ -29,6 +29,7 @@ from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluat
     merge_mot_formats
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
 from .bt_utils.classifier import MyClassifier, build_image_paths_dict, resolve_class_assignments
+from .bt_utils.plt_utils import plot_confusion_matrix
 
 # Help variables
 from .help import *
@@ -1081,7 +1082,7 @@ def check_args(**kwargs):
     args.display_fct = None
     return args
 
-def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, log=None):
+def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, log=None):
     gt_file_per_video = {}
     pred_files_per_method_per_video = {}
     for video_output in video_outputs:
@@ -1105,13 +1106,22 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             pred_files_per_method_per_video[method_name].values(),
             os.path.join(output_merges, '%s_merged.json' % (method_name)),
         )
+        if ignore_noid:
+            ignore_classes = [gt['id'] for gt in load_json_file(gt_file)['categories'] if gt['name'] == 'NoID']
+        else:
+            ignore_classes = []
         eval_results = evaluate_detection(
             gt_file,
             method_pred,
             name='%s' % (method_name),
             save_path=eval_file,
+            ignore_classes=ignore_classes,
+            cm=True,
         )
-        print_and_log('\tMethod %s: %s' % (method_name, str(eval_results)), log=log)
+        cm_path = os.path.join(output_merges, 'confusion_matrix', '%s.png' % (method_name))
+        os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+        plot_confusion_matrix(eval_results['cm'][1], eval_results['cm'][0], cm_path)
+        print_and_log('\tMethod %s: %s' % (method_name, str({k: v for k, v in eval_results.items() if k != 'cm'})), log=log)
 
 def final_evaluation(args, main_output, log=None):
     '''
@@ -1185,6 +1195,8 @@ def final_evaluation(args, main_output, log=None):
             'gt_class_coco_format.json',
             'class_coco_format',
             os.path.join(main_output, 'final_evaluation', 'class_eval'),
+            ignore_noid=True,
+            cm=True,
             log=log
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)

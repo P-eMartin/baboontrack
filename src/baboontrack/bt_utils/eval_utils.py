@@ -117,6 +117,96 @@ class myCOCOeval(COCOeval):
                     if g['category_id'] in self.ignore_classes:
                         g['ignore'] = 1
 
+    def compute_cm(self, iouThr=0.5):
+        """
+        Compute a confusion matrix using IoU matching only (ignoring categories).
+        Rows = ground truth categories + FP row (last), columns = predicted categories + FN column (last).
+
+        Ignore key is not taken into account.
+
+        Args:
+            iouThr (float): IoU threshold for matching. Default: 0.5.
+
+        Returns:
+            cm (np.ndarray): Confusion matrix of shape (num_categories + 1, num_categories + 1).
+            labels (list): List of category IDs corresponding to the rows and columns of the confusion matrix.
+        """
+
+        cat_ids = sorted(self.cocoGt.getCatIds())
+        cat_to_idx = {c: i for i, c in enumerate(cat_ids)}
+
+        n = len(cat_ids)
+
+        # last row = FP
+        # last col = FN
+        cm = np.zeros((n + 1, n + 1), dtype=np.int64)
+
+        def bbox_iou(box1, box2):
+            """
+            COCO bbox format: [x, y, w, h]
+            """
+            x1, y1, w1, h1 = box1
+            x2, y2, w2, h2 = box2
+            xa = max(x1, x2)
+            ya = max(y1, y2)
+            xb = min(x1 + w1, x2 + w2)
+            yb = min(y1 + h1, y2 + h2)
+            inter = max(0, xb - xa) * max(0, yb - ya)
+            if inter == 0:
+                return 0.0
+            area1 = w1 * h1
+            area2 = w2 * h2
+
+            return inter / (area1 + area2 - inter)
+
+        for img_id in self.params.imgIds:
+            gt = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=[img_id]))
+            dt = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=[img_id]))
+            if len(gt) == 0 and len(dt) == 0:
+                continue
+            # highest confidence first
+            dt = sorted(dt, key=lambda x: -x["score"])
+            matched_gt = set()
+            # ------------------------
+            # Match detections
+            # ------------------------
+            for d in dt:
+                best_gt = None
+                best_iou = iouThr
+                for g in gt:
+                    if g["id"] in matched_gt:
+                        continue
+                    if g.get("iscrowd", 0):
+                        continue
+                    iou = bbox_iou(d["bbox"], g["bbox"])
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_gt = g
+
+                if best_gt is None:
+                    # False positive
+                    pred_idx = cat_to_idx[d["category_id"]]
+                    cm[-1, pred_idx] += 1
+                    continue
+                matched_gt.add(best_gt["id"])
+                gt_idx = cat_to_idx[best_gt["category_id"]]
+                pred_idx = cat_to_idx[d["category_id"]]
+                cm[gt_idx, pred_idx] += 1
+
+            # ------------------------
+            # False negatives
+            # ------------------------
+            for g in gt:
+                if g["id"] in matched_gt:
+                    continue
+                # # ignored GT do not count as FN
+                # if g.get("ignore", 0):
+                #     continue
+                gt_idx = cat_to_idx[g["category_id"]]
+                cm[gt_idx, -1] += 1
+        labels = cat_ids + ["FN"]
+        return cm, labels
+
 '''
 Helper
 '''
@@ -620,9 +710,18 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
 #####
 ## Evaluation of the detection and tracking results
 #####
-def coco_eval(gt_file, detection_file, ignore_classes=[]):
+def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False):
     """
     Run COCO evaluation and return metrics as a flat dictionary.
+
+    Args:
+        gt_file: str, path to the ground truth JSON file or zip file in COCO format
+        detection_file: str, path to the detection JSON file or zip file in COCO format
+        ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
+        cm: bool, whether to compute the confusion matrix (default False)
+
+    Returns:
+        dict, the evaluation results
     """
 
     coco_gt = myCOCO(gt_file)
@@ -632,27 +731,31 @@ def coco_eval(gt_file, detection_file, ignore_classes=[]):
     # else:
     coco_dt = coco_gt.loadRes(detection_file)
     
-    coco_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox", ignore_classes=ignore_classes)
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
+    my_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox", ignore_classes=ignore_classes)
+    my_eval.evaluate()
+    my_eval.accumulate()
+    my_eval.summarize()
 
-    return {
-        "AP": coco_eval.stats[0],
-        "AP50": coco_eval.stats[1],
-        "AP75": coco_eval.stats[2],
-        "AP_small": coco_eval.stats[3],
-        "AP_medium": coco_eval.stats[4],
-        "AP_large": coco_eval.stats[5],
-        "AR": coco_eval.stats[6],
-        "AR50": coco_eval.stats[7],
-        "AR75": coco_eval.stats[8],
-        "AR_small": coco_eval.stats[9],
-        "AR_medium": coco_eval.stats[10],
-        "AR_large": coco_eval.stats[11],
+    metrics = {
+        "AP": my_eval.stats[0],
+        "AP50": my_eval.stats[1],
+        "AP75": my_eval.stats[2],
+        "AP_small": my_eval.stats[3],
+        "AP_medium": my_eval.stats[4],
+        "AP_large": my_eval.stats[5],
+        "AR": my_eval.stats[6],
+        "AR50": my_eval.stats[7],
+        "AR75": my_eval.stats[8],
+        "AR_small": my_eval.stats[9],
+        "AR_medium": my_eval.stats[10],
+        "AR_large": my_eval.stats[11],
     }
+    if cm:
+        metrics["cm"] = my_eval.compute_cm()
+    return metrics
 
-def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[]):
+
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -662,16 +765,17 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
         save_path: str, path to save the evaluation results (default None)
         extra_info: dict (optional), additional metadata to include in the evaluation results
         ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
+        cm: bool, whether to compute the confusion matrix (default False)
 
     Returns:
         dict, the evaluation results
     '''
-    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes)
+    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm)
     if save_path is not None:
         update_eval_csv(
             csv_path=save_path,
             segment_name=name if name is not None else os.path.basename(detection_file).split('.')[0],
-            metrics=metrics,
+            metrics={k: v for k, v in metrics.items() if k != "cm"},
             extra_info=extra_info
         )
     return metrics
