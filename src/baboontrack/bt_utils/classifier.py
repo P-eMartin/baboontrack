@@ -324,6 +324,7 @@ class MyClassifier:
             image_paths: dict, a dictionary of list of image paths, with the keys being the IDs of the images (e.g. track IDs) and the values being the list of image paths corresponding to each ID
         '''
         if self.nca:
+            batch_size = 32
             # Train the NCA projection layer on the features of the images in the database
             from torch.utils.data import Dataset, DataLoader
             class FeatureDataset(Dataset):
@@ -347,7 +348,7 @@ class MyClassifier:
                     image = self.transform(image)
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
-            dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=len(dataset) > batch_size)
             self.train_nca(dataloader, epochs=self.epochs, lr=self.lr)
         self.database = {}
         for class_id, paths in image_paths.items():
