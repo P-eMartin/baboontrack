@@ -1238,13 +1238,12 @@ def run(**kwargs):
         if os.path.isfile(args.input_video) or (os.path.isdir(args.input_video) and any(os.path.isfile(os.path.join(args.input_video, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in os.listdir(args.input_video))):
             main_funct(args, log=log)
         else:
-            main_input = copy.deepcopy(args.input_video)
             main_output = copy.deepcopy(args.output)
-            # input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            # for input_path in input_list:
-            #     args.input_video = input_path
-            #     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
-            #     main_funct(args, log=log)
+            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            for input_path in input_list:
+                args.input_video = input_path
+                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+                main_funct(args, log=log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)
