@@ -815,14 +815,14 @@ def main_loop(args, log=None):
         roi_factors = [1.1]
     else:
         det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-        prompts = ['an animal', 'a baboon', 'a monkey', 'a primate', 'an ape']
+        prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
         epochs = [10, 100]
         lr = [1e-3, 1e-4]
-        roi_factors = [0.9, 1.0, 1.1]
+        roi_factors = [1.0, 1.1, 0.9]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
