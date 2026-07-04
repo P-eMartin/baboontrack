@@ -295,7 +295,7 @@ class MyClassifier:
                 return None, None
             # Take the bbox with the highest score
             best_idx = np.argmax(scores)
-            x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor)
+            x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor, format='xyxy')
             # max, min and closest integer
             x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
             image = self.read_image_pil(image[y1:y2, x1:x2])

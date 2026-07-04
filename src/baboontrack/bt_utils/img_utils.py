@@ -688,7 +688,7 @@ def get_bbox(bbox, bbox_format='xywh', bbox_normalized=True, image_size=None):
         y2 = int(y2 * image_size[0])
     return [x1, y1, x2, y2]
 
-def apply_roi_factor(bbox, roi_factor):
+def apply_roi_factor(bbox, roi_factor, format='xywh'):
     '''
     Apply the roi_factor to the bounding box.
 
@@ -701,14 +701,30 @@ def apply_roi_factor(bbox, roi_factor):
     '''
     if roi_factor == 1.0:
         return bbox
-    x, y, w, h = bbox
-    x_center = x + w / 2
-    y_center = y + h / 2
-    new_w = w * roi_factor
-    new_h = h * roi_factor
-    new_x = max(0, x_center - new_w / 2)
-    new_y = max(0, y_center - new_h / 2)
-    return [new_x, new_y, new_w, new_h]
+    if format == 'xyxy':
+        x1, y1, x2, y2 = bbox
+        w = x2 - x1
+        h = y2 - y1
+        x_center = x1 + w / 2
+        y_center = y1 + h / 2
+        new_w = max(1, w * roi_factor)
+        new_h = max(1, h * roi_factor)
+        new_x1 = max(0, x_center - new_w / 2)
+        new_y1 = max(0, y_center - new_h / 2)
+        new_x2 = new_x1 + new_w
+        new_y2 = new_y1 + new_h
+        return [new_x1, new_y1, new_x2, new_y2]
+    elif format == 'xywh':
+        x, y, w, h = bbox
+        x_center = x + w / 2
+        y_center = y + h / 2
+        new_w = max(1, w * roi_factor)
+        new_h = max(1, h * roi_factor)
+        new_x = max(0, x_center - new_w / 2)
+        new_y = max(0, y_center - new_h / 2)
+        return [new_x, new_y, new_w, new_h]
+    else:
+        raise ValueError("Invalid format %s. Should be 'xywh' or 'xyxy'." % (format))
     
 def write_text(frame, text, position, fontscale, color_text=None, color_bg=None, thickness=1, font=cv2.FONT_HERSHEY_SIMPLEX):
     '''
