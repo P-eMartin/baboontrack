@@ -328,12 +328,25 @@ class MyClassifier:
             # Train the NCA projection layer on the features of the images in the database
             from torch.utils.data import Dataset, DataLoader
             class FeatureDataset(Dataset):
-                def __init__(self, image_paths, transform):
+                def __init__(self, image_paths, transform, det=None, roi_factor=1.0, log=None):
                     self.image_paths = []
                     self.labels = []
+                    self.det = det
+                    self.roi_factor = roi_factor
+                    self.log = log
                     self.class_to_idx = {label: idx for idx, label in enumerate(image_paths.keys())}
                     for label, paths in image_paths.items():
                         for path in paths:
+                            # Check if detector get something
+                            if self.det is not None:
+                                image = cv2.imread(path)
+                                if image.size == 0:
+                                    print_and_log("\tFeatureDataset init: empty image, cannot extract feature.", log=self.log)
+                                    continue
+                                bboxes, scores = self.det.detect(image)
+                                if len(bboxes) == 0:
+                                    print_and_log("\tFeatureDataset init: no detection, cannot extract feature.", log=self.log)
+                                    continue
                             self.image_paths.append(path)
                             self.labels.append(label)
                     self.transform = transform
@@ -344,7 +357,23 @@ class MyClassifier:
                 def __getitem__(self, idx):
                     img_path = self.image_paths[idx]
                     label = self.class_to_idx[self.labels[idx]]
-                    image = Image.open(img_path).convert("RGB")
+                    if self.det is not None:
+                        image = cv2.imread(img_path)
+                        if image.size == 0:
+                            print_and_log("\tFeatureDataset getitem: empty image, cannot extract feature.", log=self.log)
+                            return None, None
+                        bboxes, scores = self.det.detect(image)
+                        if len(bboxes) == 0:
+                            print_and_log("\tFeatureDataset getitem: no detection, cannot extract feature.", log=self.log)
+                            return None, None
+                        # Take the bbox with the highest score
+                        best_idx = np.argmax(scores)
+                        x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor, format='xyxy')
+                        # max, min and closest integer
+                        x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
+                        image = self.read_image_pil(image[y1:y2, x1:x2])
+                    else:
+                        image = Image.open(img_path).convert("RGB")
                     image = self.transform(image)
                     return image, label
             dataset = FeatureDataset(image_paths, self.transform)
