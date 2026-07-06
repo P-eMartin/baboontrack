@@ -376,7 +376,7 @@ class MyClassifier:
                         image = Image.open(img_path).convert("RGB")
                     image = self.transform(image)
                     return image, label
-            dataset = FeatureDataset(image_paths, self.transform)
+            dataset = FeatureDataset(image_paths, self.transform, det=self.det, roi_factor=self.roi_factor, log=self.log)
             # Set seed for reproducibility
             torch.manual_seed(42)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=len(dataset) > batch_size)
