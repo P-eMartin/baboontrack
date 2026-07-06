@@ -341,11 +341,16 @@ class MyClassifier:
                             if self.det is not None:
                                 image = cv2.imread(path)
                                 if image.size == 0:
-                                    print_and_log("\tFeatureDataset init: empty image, cannot extract feature.", log=self.log)
+                                    print_and_log("\tFeatureDataset init: empty image %s, cannot extract feature." % (path), log=self.log)
                                     continue
                                 bboxes, scores = self.det.detect(image)
                                 if len(bboxes) == 0:
-                                    print_and_log("\tFeatureDataset init: no detection, cannot extract feature.", log=self.log)
+                                    path_nodet = os.path.join('.tmp/nodet/', label, os.path.basename(path))
+                                    if not os.path.exists(path_nodet):
+                                        os.makedirs(os.path.join('.tmp/nodet/', label), exist_ok=True)
+                                        print_and_log("\tFeatureDataset init: no detection for %s, cannot extract feature." % (path), log=self.log)
+                                        print_and_log("\tFeatureDataset init: saving image in .tmp/nodet/.", log=self.log)
+                                        cv2.imwrite(path_nodet, image)
                                     continue
                             self.image_paths.append(path)
                             self.labels.append(label)
@@ -371,7 +376,7 @@ class MyClassifier:
                         x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor, format='xyxy')
                         # max, min and closest integer
                         x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
-                        image = self.read_image_pil(image[y1:y2, x1:x2])
+                        image = Image.fromarray(image[y1:y2, x1:x2]).convert("RGB")
                     else:
                         image = Image.open(img_path).convert("RGB")
                     image = self.transform(image)
