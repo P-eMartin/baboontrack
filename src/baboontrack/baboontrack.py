@@ -756,13 +756,13 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
-    # Save MOT format
-    save_mot_format(
-        class_dict['detections'],
-        os.path.join(args.output, 'mot'),
-        image_size=image_size,
-        labels=classes
-    )
+    # # Save MOT format
+    # save_mot_format(
+    #     class_dict['detections'],
+    #     os.path.join(args.output, 'mot'),
+    #     image_size=image_size,
+    #     labels=classes
+    # )
 
     # # Save COCO format
     # save_coco_format(
@@ -814,15 +814,19 @@ def main_loop(args, log=None):
         lr = [1e-4]
         roi_factors = [1.1]
     else:
-        det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-        prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
-        tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
+        # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
+        det_models = ['MDv5b', 'sam3']
+        # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
+        prompts = ['a baboon', 'an animal']
+        # tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
+        tracker_types = ['IoU', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
         nca = [True, False]
         epochs = [10, 100]
         lr = [1e-3, 1e-4]
-        roi_factors = [1.0, 1.1, 0.9]
+        roi_factors = [1.0, 1.1]
+        # roi_factors = [1.0, 1.1, 0.9]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
