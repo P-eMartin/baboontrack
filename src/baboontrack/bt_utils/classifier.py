@@ -240,7 +240,7 @@ class MyClassifier:
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
-            print(f"Epoch {epoch}: {total_loss:.4f}")
+            print_and_log(f"Epoch {epoch}: {total_loss:.4f}", log=self.log)
         # Save nca in .tmp folder to avoid retraining if the same model is used again
         torch.save(self.projection.state_dict(), path_weights)
     
@@ -331,6 +331,7 @@ class MyClassifier:
                 def __init__(self, image_paths, transform, det=None, roi_factor=1.0, log=None):
                     self.image_paths = []
                     self.labels = []
+                    self.bboxes = []
                     self.det = det
                     self.roi_factor = roi_factor
                     self.log = log
@@ -352,6 +353,7 @@ class MyClassifier:
                                         print_and_log("\tFeatureDataset init: saving image in .tmp/nodet/.", log=self.log)
                                         cv2.imwrite(path_nodet, image)
                                     continue
+                                self.bboxes.append(bboxes[np.argmax(scores)])
                             self.image_paths.append(path)
                             self.labels.append(label)
                     self.transform = transform
@@ -363,17 +365,12 @@ class MyClassifier:
                     img_path = self.image_paths[idx]
                     label = self.class_to_idx[self.labels[idx]]
                     if self.det is not None:
+                        bbox = self.bboxes[idx]
                         image = cv2.imread(img_path)
                         if image.size == 0:
                             print_and_log("\tFeatureDataset getitem: empty image, cannot extract feature.", log=self.log)
                             return None, None
-                        bboxes, scores = self.det.detect(image)
-                        if len(bboxes) == 0:
-                            print_and_log("\tFeatureDataset getitem: no detection, cannot extract feature.", log=self.log)
-                            return None, None
-                        # Take the bbox with the highest score
-                        best_idx = np.argmax(scores)
-                        x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor, format='xyxy')
+                        x1, y1, x2, y2 = apply_roi_factor(bbox, self.roi_factor, format='xyxy')
                         # max, min and closest integer
                         x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
                         image = Image.fromarray(image[y1:y2, x1:x2]).convert("RGB")
