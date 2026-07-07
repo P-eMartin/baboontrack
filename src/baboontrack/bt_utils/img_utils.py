@@ -224,6 +224,8 @@ class VideoFrameIterator:
         if self.img:
             frame = cv2.imread(self.img_files[0])
         else:
+            print_and_log("Getting the resolution of the video %s by reading the first frame. Video is reset." % (self.path), log=self.log)
+            self.reset_video()
             ret, frame = self.cap.read()
             if not ret:
                 print_and_log("Error reading the first frame of the video %s to get its resolution." % (self.path), log=self.log)

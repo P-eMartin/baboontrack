@@ -860,6 +860,7 @@ def main_loop(args, log=None):
                                         )
                                     ), log=log)
                                     main(args, log=log)
+                                    args.input_video.reset_video()
 
 
 def split_or_empty(string):
