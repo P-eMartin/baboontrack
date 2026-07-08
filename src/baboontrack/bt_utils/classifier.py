@@ -246,8 +246,15 @@ class MyClassifier:
     
     def nca_loss(self, embeddings, labels, temperature=1.0):
         """
-        embeddings: [B, D]
-        labels: [B]
+        Compute the NCA loss for the given embeddings and labels.
+
+        Args:
+            embeddings: torch.Tensor of shape (B, D)
+            labels: torch.Tensor of shape (B,)
+            temperature: float, temperature parameter for scaling the similarities
+
+        Returns:
+            loss: torch.Tensor, the computed NCA loss
         """
         embeddings = F.normalize(embeddings, dim=1)
 

@@ -848,19 +848,19 @@ def main_loop(args, log=None):
                                     args.epochs = epoch
                                     for lr_val in lr if nca_val else [0]:
                                         args.lr = lr_val
-                                    print_and_log('Running det %s%s and tracker %s%s' % (
-                                        det_model,
-                                        ' with prompt "%s"' % (prompt) if prompt else '',
-                                        tracker_type,
-                                        ' with classification%s%s%s%s' % (
-                                            ' with %s' % (class_det) if class_det else '',
-                                            ' with feat avg' if feat else '',
-                                            ' with NCA using epochs=%d, lr=%.0e' % (args.epochs, args.lr) if nca_val else '',
-                                            ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                        )
-                                    ), log=log)
-                                    main(args, log=log)
-                                    args.input_video.reset_video()
+                                        print_and_log('Running det %s%s and tracker %s%s' % (
+                                            det_model,
+                                            ' with prompt "%s"' % (prompt) if prompt else '',
+                                            tracker_type,
+                                            ' with classification%s%s%s%s' % (
+                                                ' with %s' % (class_det) if class_det else '',
+                                                ' with feat avg' if feat else '',
+                                                ' with NCA using epochs=%d, lr=%.0e' % (args.epochs, args.lr) if nca_val else '',
+                                                ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                            )
+                                        ), log=log)
+                                        main(args, log=log)
+                                        args.input_video.reset_video()
 
 
 def split_or_empty(string):
