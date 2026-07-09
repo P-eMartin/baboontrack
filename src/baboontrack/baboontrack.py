@@ -472,8 +472,7 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
                     frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
                     idxs.append(frame_idx)
                     roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
-                    img_cropped = cv2.imread(roi_file)
-                    feature, extra_bbox = my_classifier.extract_feature(img_cropped)
+                    feature, extra_bbox = my_classifier.extract_feature(roi_file)
                     if feature is None:
                         continue
                     features.append(feature)
