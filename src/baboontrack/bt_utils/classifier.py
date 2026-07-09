@@ -131,7 +131,7 @@ class PrimateFaceDetector:
         return bboxes, scores
 
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, epochs=100, lr=1e-4, roi_factor=1.0, log=None):
+    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, epochs=100, lr=1e-4, roi_det=1.0, name_database='', log=None):
         self.log = log
         # Load the model
         # model = torch.load(model_path, map_location=device)
@@ -144,7 +144,7 @@ class MyClassifier:
         self.nca = nca
         self.epochs = epochs
         self.lr = lr
-        self.roi_factor = roi_factor
+        self.roi_det = roi_det
 
         # Define the transform
         self.transform = T.Compose([
@@ -173,11 +173,9 @@ class MyClassifier:
             torch.nn.init.eye_(self.projection.weight[:, :128])
         else:
             self.projection = None
-        self.name = 'MyClassifier' \
-            + ('_primateface_%g_%g' % (det_thr, nms_thr) if detector_type == 'primateface' else '') \
-            + ('_NCA_%d-%g' % (epochs, lr) if nca else '') + ('_featavg' if feat_avg else '') \
-            + ('_roi%g' % roi_factor if roi_factor != 1.0 else '')
-        
+        self.name = 'MyClassifier' + ('_%s' % name_database if name_database else '') \
+            + ('_primateface_%g_%g_%g' % (det_thr, nms_thr, roi_det) if detector_type == 'primateface' else '') \
+            + ('_NCA_%d-%g' % (epochs, lr) if nca else '')      
     
     def read_image_cv2(self, img):
         '''
@@ -320,7 +318,7 @@ class MyClassifier:
                 return None, None
             # Take the bbox with the highest score
             best_idx = np.argmax(scores)
-            x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_factor, format='xyxy')
+            x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_det, format='xyxy')
             # max, min and closest integer
             x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
             image = self.read_image_pil(image[y1:y2, x1:x2])
@@ -353,12 +351,12 @@ class MyClassifier:
             # Train the NCA projection layer on the features of the images in the database
             from torch.utils.data import Dataset, DataLoader
             class FeatureDataset(Dataset):
-                def __init__(self, image_paths, transform, det=None, roi_factor=1.0, log=None):
+                def __init__(self, image_paths, transform, det=None, roi_det=1.0, log=None):
                     self.image_paths = []
                     self.labels = []
                     self.bboxes = []
                     self.det = det
-                    self.roi_factor = roi_factor
+                    self.roi_det = roi_det
                     self.log = log
                     self.class_to_idx = {label: idx for idx, label in enumerate(image_paths.keys())}
                     for label, paths in image_paths.items():
@@ -395,7 +393,7 @@ class MyClassifier:
                         if image.size == 0:
                             print_and_log("\tFeatureDataset getitem: empty image, cannot extract feature.", log=self.log)
                             return None, None
-                        x1, y1, x2, y2 = apply_roi_factor(bbox, self.roi_factor, format='xyxy')
+                        x1, y1, x2, y2 = apply_roi_factor(bbox, self.roi_det, format='xyxy')
                         # max, min and closest integer
                         x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
                         image = Image.fromarray(image[y1:y2, x1:x2]).convert("RGB")
@@ -403,7 +401,7 @@ class MyClassifier:
                         image = Image.open(img_path).convert("RGB")
                     image = self.transform(image)
                     return image, label
-            dataset = FeatureDataset(image_paths, self.transform, det=self.det, roi_factor=self.roi_factor, log=self.log)
+            dataset = FeatureDataset(image_paths, self.transform, det=self.det, roi_det=self.roi_det, log=self.log)
             # Set seed for reproducibility
             torch.manual_seed(42)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=len(dataset) > batch_size)

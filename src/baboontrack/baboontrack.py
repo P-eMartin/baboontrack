@@ -392,9 +392,9 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
-def classify(detection_dict, my_video, output_file, class_database=None, class_threshold=0.5, image_size=None, device='cpu',
+def classify(detection_dict, my_video, output_file, class_database='', class_threshold=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
-             noid_str='NoID', log=None):
+             roi_det=1.0, noid_str='NoID', source_roi='', log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -414,7 +414,9 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         epochs: int, the number of epochs for training (default 100)
         lr: float, the learning rate for training (default 1e-4)
         roi_factor: float, the factor to scale the region of interest for feature extraction (default 1.0)
+        roi_det: float, the factor to scale the region of interest for detection (default 1.0)
         noid_str: str, the string for the "NoID" class (default 'NoID')
+        source_roi: str, the source of the region of interest (default '') - allow loading faster
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -441,13 +443,17 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
         my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
-                                     feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_factor=roi_factor, log=log)
+                                     feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det,
+                                     name_database=os.path.basename(class_database), log=log)
         my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
 
         ## Step 2: For each track, extract the features per image and get the class scores
+        if source_roi:
+            roi_path = os.path.join(os.path.dirname(output_file), 'rois', source_roi) 
+            os.makedirs(roi_path, exist_ok=True)
         track_class_dict = defaultdict(list)
         start_loop = time.time()
         for idx, (track_id, track_dets) in enumerate(track_dict.items()):
@@ -460,18 +466,36 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
             features = []
             idxs = []
             extra_bboxs = {}
-            for det in track_dets:
-                frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
-                idxs.append(frame_idx)
-                img = my_video.get_frame_at_idx(frame_idx)
-                x, y, w, h = apply_roi_factor(det['bbox'], roi_factor)
-                img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
-                feature, extra_bbox = my_classifier.extract_feature(img_cropped)
-                if feature is None:
-                    continue
-                features.append(feature)
-                if extra_bbox is not None:
-                    extra_bboxs[frame_idx] = extra_bbox
+            ### If source_roi is provided and the roi files already exist, load them instead of extracting them again
+            if source_roi and os.path.exists(os.path.join(roi_path, 'track_%d' % track_id)) and len(os.listdir(os.path.join(roi_path, 'track_%d' % track_id))) == len(track_dets):
+                for det in track_dets:
+                    frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
+                    idxs.append(frame_idx)
+                    roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
+                    img_cropped = cv2.imread(roi_file)
+                    feature, extra_bbox = my_classifier.extract_feature(img_cropped)
+                    if feature is None:
+                        continue
+                    features.append(feature)
+                    if extra_bbox is not None:
+                        extra_bboxs[frame_idx] = extra_bbox
+            else:
+                for det in track_dets:
+                    frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
+                    idxs.append(frame_idx)
+                    img = my_video.get_frame_at_idx(frame_idx)
+                    x, y, w, h = apply_roi_factor(det['bbox'], roi_factor)
+                    img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
+                    if source_roi:
+                        roi_file = os.path.join(roi_path, 'track_%d', '%d.jpg' % (track_id, frame_idx))
+                        os.makedirs(os.path.dirname(roi_file), exist_ok=True)
+                        cv2.imwrite(roi_file, img_cropped)
+                    feature, extra_bbox = my_classifier.extract_feature(img_cropped)
+                    if feature is None:
+                        continue
+                    features.append(feature)
+                    if extra_bbox is not None:
+                        extra_bboxs[frame_idx] = extra_bbox
             track_class_dict[track_id] = {
                 'scores': my_classifier.get_class_scores(features),
                 'idxs': idxs,
@@ -702,10 +726,11 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     # Classification
     if check_stop(log=log): return 0
     classi_name = track_name
-    classi_name += '_%s-thr-%g-nms-%g' % (args.class_det, args.class_det_thr, args.class_nms_thr) if args.class_det else ''
+    classi_name += '_roi-%g' % (args.roi_factor)
+    source_roi = classi_name
+    classi_name += '_%s-thr-%g-nms-%g-roi-%g' % (args.class_det, args.class_det_thr, args.class_nms_thr, args.roi_det) if args.class_det else ''
     classi_name += '_featavg' if args.feat_avg else ''
     classi_name += '_nca_%d-%g' % (args.epochs, args.lr) if args.nca else ''
-    classi_name += '_roi-%g' % (args.roi_factor) if args.roi_factor != 1.0 else ''
     class_dict = classify(
         tracking_dict,
         my_video,
@@ -721,7 +746,9 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         epochs=args.epochs,
         lr=args.lr,
         roi_factor=args.roi_factor,
+        roi_det=args.roi_det,
         noid_str=noid_str,
+        source_roi=source_roi,
         log=log
     )
     if check_stop(log=log): return 0
@@ -814,6 +841,7 @@ def main_loop(args, log=None):
         epochs = [100]
         lr = [1e-4]
         roi_factors = [1.1]
+        roi_dets = [1.1]
     else:
         # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
         det_models = ['sam3']
@@ -826,10 +854,12 @@ def main_loop(args, log=None):
         feat_avg = [False]
         # nca = [True, False]
         nca = [True]
-        epochs = [10, 100, 500]
+        epochs = [100, 200]
         lr = [1e-3, 1e-4, 1e-5]
         # roi_factors = [1.0, 1.1, 0.9]
         roi_factors = [1.0]
+        # roi_dets = [1.0, 1.1, 0.9]
+        roi_dets = [1, 1.1, 1.5]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -851,19 +881,21 @@ def main_loop(args, log=None):
                                     args.epochs = epoch
                                     for lr_val in lr if nca_val else [0]:
                                         args.lr = lr_val
-                                        print_and_log('Running det %s%s and tracker %s%s' % (
-                                            det_model,
-                                            ' with prompt "%s"' % (prompt) if prompt else '',
-                                            tracker_type,
-                                            ' with classification%s%s%s%s' % (
-                                                ' with %s' % (class_det) if class_det else '',
-                                                ' with feat avg' if feat else '',
-                                                ' with NCA using epochs=%d, lr=%.0e' % (args.epochs, args.lr) if nca_val else '',
-                                                ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                            )
-                                        ), log=log)
-                                        main(args, log=log)
-                                        args.input_video.reset_video()
+                                        for roi_det in roi_dets if nca_val else [1.0]:
+                                            args.roi_det = roi_det
+                                            print_and_log('Running det %s%s and tracker %s%s' % (
+                                                det_model,
+                                                ' with prompt "%s"' % (prompt) if prompt else '',
+                                                tracker_type,
+                                                ' with classification%s%s%s%s' % (
+                                                    ' with %s' % (class_det) if class_det else '',
+                                                    ' with feat avg' if feat else '',
+                                                    ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
+                                                    ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                                )
+                                            ), log=log)
+                                            main(args, log=log)
+                                            args.input_video.reset_video()
 
 
 def split_or_empty(string):
@@ -1042,6 +1074,12 @@ def get_args():
         default=1.0,
         type=float,
         help=helptext_roi_factor
+    )
+    parser.add_argument(
+        '-R', '--roi_det',
+        default=1.0,
+        type=float,
+        help=helptext_roi_det
     )
     parser.add_argument(
         '-e', '--eval_detection',
