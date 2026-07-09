@@ -8,6 +8,7 @@ import os
 import cv2
 from .primateface import PrimateFace
 from .img_utils import print_and_log, apply_roi_factor
+from .plt_utils import plot_loss
 
 def avg_features(track_features):
     '''
@@ -225,6 +226,9 @@ class MyClassifier:
             print_and_log(f"Loaded NCA projection layer from {path_weights}", log=self.log)
             return
         optimizer = torch.optim.Adam(self.projection.parameters(), lr=lr)
+        min_loss = float('inf')
+        best_epoch = -1
+        train_loss = []
         for epoch in range(epochs):
             total_loss = 0
             for imgs, labels in dataloader:
@@ -240,9 +244,23 @@ class MyClassifier:
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
-            print_and_log(f"Epoch {epoch}: {total_loss:.4f}", log=self.log)
+            loss_avg = total_loss / len(dataloader)
+            if loss_avg < min_loss:
+                min_loss = loss_avg
+                torch.save(self.projection.state_dict(), path_weights)
+                best_epoch = epoch
+                print_and_log(f"Epoch {epoch}: {total_loss:.4g} (best, saved to {path_weights})", log=self.log)
+            else:
+                print_and_log(f"Epoch {epoch}: {total_loss:.4g}", log=self.log)
+            train_loss.append(loss_avg)
+        print_and_log(f"Finished training NCA projection layer. Best loss: {min_loss:.4g} at epoch {best_epoch}. Saved to {path_weights}", log=self.log)
         # Save nca in .tmp folder to avoid retraining if the same model is used again
-        torch.save(self.projection.state_dict(), path_weights)
+        # torch.save(self.projection.state_dict(), path_weights)
+        plot_loss(
+            train_loss,
+            save_path=os.path.join(saved_folder, f"{self.name}_nca_training_loss.png"),
+            title=f"NCA training loss with min loss {min_loss:.4g} at epoch {best_epoch}",
+        )
     
     def nca_loss(self, embeddings, labels, temperature=1.0):
         """

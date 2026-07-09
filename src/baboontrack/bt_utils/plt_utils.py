@@ -612,3 +612,15 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close('all')
+
+def plot_loss(losses, save_path, title='Loss', xlabel='Epochs', ylabel='Loss', fontsize=12):
+    plt.figure(figsize=(8, 6))
+    plt.plot(losses, label='Loss', color='blue')
+    plt.title(title, fontsize=fontsize)
+    plt.xlabel(xlabel, fontsize=fontsize)
+    plt.ylabel(ylabel, fontsize=fontsize)
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close('all')
