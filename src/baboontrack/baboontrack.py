@@ -486,7 +486,7 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
                     x, y, w, h = apply_roi_factor(det['bbox'], roi_factor)
                     img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
                     if source_roi:
-                        roi_file = os.path.join(roi_path, 'track_%d', '%d.jpg' % (track_id, frame_idx))
+                        roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
                         os.makedirs(os.path.dirname(roi_file), exist_ok=True)
                         cv2.imwrite(roi_file, img_cropped)
                     feature, extra_bbox = my_classifier.extract_feature(img_cropped)
@@ -858,7 +858,7 @@ def main_loop(args, log=None):
         # roi_factors = [1.0, 1.1, 0.9]
         roi_factors = [1.0]
         # roi_dets = [1.0, 1.1, 0.9]
-        roi_dets = [1, 1.1, 1.5]
+        roi_dets = [1, 1.5, 2, 3]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
