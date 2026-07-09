@@ -51,6 +51,9 @@
             <li>
                     <a class="function" href="#plot_confusion_matrix">plot_confusion_matrix</a>
             </li>
+            <li>
+                    <a class="function" href="#plot_loss">plot_loss</a>
+            </li>
     </ul>
 
 
@@ -686,6 +689,18 @@
 </span><span id="L-612"><a href="#L-612"><span class="linenos">612</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
 </span><span id="L-613"><a href="#L-613"><span class="linenos">613</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
 </span><span id="L-614"><a href="#L-614"><span class="linenos">614</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+</span><span id="L-615"><a href="#L-615"><span class="linenos">615</span></a>
+</span><span id="L-616"><a href="#L-616"><span class="linenos">616</span></a><span class="k">def</span><span class="w"> </span><span class="nf">plot_loss</span><span class="p">(</span><span class="n">losses</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Epochs&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">):</span>
+</span><span id="L-617"><a href="#L-617"><span class="linenos">617</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+</span><span id="L-618"><a href="#L-618"><span class="linenos">618</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">losses</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">)</span>
+</span><span id="L-619"><a href="#L-619"><span class="linenos">619</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="L-620"><a href="#L-620"><span class="linenos">620</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="L-621"><a href="#L-621"><span class="linenos">621</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="L-622"><a href="#L-622"><span class="linenos">622</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+</span><span id="L-623"><a href="#L-623"><span class="linenos">623</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</span><span id="L-624"><a href="#L-624"><span class="linenos">624</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</span><span id="L-625"><a href="#L-625"><span class="linenos">625</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+</span><span id="L-626"><a href="#L-626"><span class="linenos">626</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -1497,6 +1512,34 @@ Peak and mask should be provided as a dictionary with similar keys as the signal
 </span><span id="plot_confusion_matrix-613"><a href="#plot_confusion_matrix-613"><span class="linenos">613</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
 </span><span id="plot_confusion_matrix-614"><a href="#plot_confusion_matrix-614"><span class="linenos">614</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
 </span><span id="plot_confusion_matrix-615"><a href="#plot_confusion_matrix-615"><span class="linenos">615</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+</span></pre></div>
+
+
+    
+
+                </section>
+                <section id="plot_loss">
+                            <input id="plot_loss-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">plot_loss</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">losses</span>,</span><span class="param">	<span class="n">save_path</span>,</span><span class="param">	<span class="n">title</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span>,</span><span class="param">	<span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Epochs&#39;</span>,</span><span class="param">	<span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span>,</span><span class="param">	<span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span></span><span class="return-annotation">):</span></span>
+
+                <label class="view-source-button" for="plot_loss-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#plot_loss"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="plot_loss-617"><a href="#plot_loss-617"><span class="linenos">617</span></a><span class="k">def</span><span class="w"> </span><span class="nf">plot_loss</span><span class="p">(</span><span class="n">losses</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Epochs&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">):</span>
+</span><span id="plot_loss-618"><a href="#plot_loss-618"><span class="linenos">618</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+</span><span id="plot_loss-619"><a href="#plot_loss-619"><span class="linenos">619</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">losses</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Loss&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">)</span>
+</span><span id="plot_loss-620"><a href="#plot_loss-620"><span class="linenos">620</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="plot_loss-621"><a href="#plot_loss-621"><span class="linenos">621</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="plot_loss-622"><a href="#plot_loss-622"><span class="linenos">622</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="n">fontsize</span><span class="p">)</span>
+</span><span id="plot_loss-623"><a href="#plot_loss-623"><span class="linenos">623</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+</span><span id="plot_loss-624"><a href="#plot_loss-624"><span class="linenos">624</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</span><span id="plot_loss-625"><a href="#plot_loss-625"><span class="linenos">625</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</span><span id="plot_loss-626"><a href="#plot_loss-626"><span class="linenos">626</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+</span><span id="plot_loss-627"><a href="#plot_loss-627"><span class="linenos">627</span></a>    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
 </span></pre></div>
 
 
