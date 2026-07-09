@@ -137,3 +137,6 @@ helptext_class_database = '''Path to the classification dictionary. Default: "/s
 The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.
 The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.
 '''
+
+helptext_save_mot = '''Save the results in MOT format. This can be useful for uploading the results to an annotation tool like CVAT or for further analysis.
+'''

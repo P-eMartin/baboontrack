@@ -426,10 +426,6 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
     if os.path.exists(output_file):
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
-    ## Set my_video to bgr extraction for classification
-    if not my_video.checked:
-        my_video.check_video()
-    my_video.bgr = True
 
     ## Check if detection_dict is filepath or dict
     detection_dict = load_as_detection_dict(detection_dict, image_size=image_size, log=log)
@@ -438,6 +434,10 @@ def classify(detection_dict, my_video, output_file, class_database=None, class_t
 
     ## Classification routine
     if class_database:
+        ## Set my_video to bgr extraction for classification
+        if not my_video.checked:
+            my_video.check_video()
+        my_video.bgr = True
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
         my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
@@ -756,13 +756,14 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 
-    # # Save MOT format
-    # save_mot_format(
-    #     class_dict['detections'],
-    #     os.path.join(args.output, 'mot'),
-    #     image_size=image_size,
-    #     labels=classes
-    # )
+    # Save MOT format
+    if args.save_mot:
+        save_mot_format(
+            class_dict['detections'],
+            os.path.join(args.output, 'mot'),
+            image_size=image_size,
+            labels=classes
+        )
 
     # # Save COCO format
     # save_coco_format(
@@ -815,18 +816,19 @@ def main_loop(args, log=None):
         roi_factors = [1.1]
     else:
         # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-        det_models = ['MDv5b', 'sam3']
+        det_models = ['sam3']
         # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         prompts = ['a baboon', 'an animal']
         # tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']
         tracker_types = ['IoU', 'botsort', 'sam3']
         class_det_types = ['primateface', '']
         feat_avg = [True, False]
-        nca = [True, False]
-        epochs = [10, 100]
-        lr = [1e-3, 1e-4]
-        roi_factors = [1.0, 1.1]
+        feat_avg = [False]
+        nca = [True]
+        epochs = [10, 100, 500]
+        lr = [1e-3, 1e-4, 1e-5]
         # roi_factors = [1.0, 1.1, 0.9]
+        roi_factors = [1.0]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -1065,6 +1067,11 @@ def get_args():
         action='store_true',
         help=helptext_loop
     )
+    parser.add_argument(
+        '-m', '--save_mot',
+        action='store_true',
+        help=helptext_save_mot
+    )
     args = parser.parse_args()
     args.parser = parser
     infer_args_name(args)
@@ -1095,16 +1102,16 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
         if not os.path.exists(gt_file):
             print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
             continue
-        pred_files = [
+        pred_folders = [
             os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) \
                 if os.path.isfile(os.path.join(video_output, preds_folder_name, f, 'detections.json'))
         ]
         gt_file_per_video[video_output] = gt_file
-        for pred_file in pred_files:
-            method_name = os.path.splitext(os.path.basename(pred_file))[0]
+        for pred_folder in pred_folders:
+            method_name = os.path.basename(pred_folder)
             if method_name not in pred_files_per_method_per_video:
                 pred_files_per_method_per_video[method_name] = {}
-            pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_file, 'detections.json')
+            pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_folder, 'detections.json')
     for method_name in pred_files_per_method_per_video:
         # Skip methods that do not have predictions for all videos
         if len(pred_files_per_method_per_video[method_name]) != len(gt_file_per_video):
