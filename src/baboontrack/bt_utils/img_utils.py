@@ -71,6 +71,7 @@ class VideoFrameIterator:
             self.img_files = natsort.natsorted(self.img_files)
             self.length = len(self.img_files)
             self.img = True
+            self.checked = True
             if self.fps is None:
                 print_and_log('Cannot get fps from %s.' % (path), log=log)
         self.idx = 0

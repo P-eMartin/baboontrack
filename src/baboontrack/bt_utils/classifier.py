@@ -247,9 +247,9 @@ class MyClassifier:
                 min_loss = loss_avg
                 torch.save(self.projection.state_dict(), path_weights)
                 best_epoch = epoch
-                print_and_log(f"Epoch {epoch}: {total_loss:.4g} (best, saved to {path_weights})", log=self.log)
+                print_and_log(f"Epoch {epoch}: {loss_avg:.4g} (best, saved to {path_weights})", log=self.log)
             else:
-                print_and_log(f"Epoch {epoch}: {total_loss:.4g}", log=self.log)
+                print_and_log(f"Epoch {epoch}: {loss_avg:.4g}", log=self.log)
             train_loss.append(loss_avg)
         print_and_log(f"Finished training NCA projection layer. Best loss: {min_loss:.4g} at epoch {best_epoch}. Saved to {path_weights}", log=self.log)
         # Save nca in .tmp folder to avoid retraining if the same model is used again
