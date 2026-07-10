@@ -294,6 +294,7 @@ class myCOCOeval(COCOeval):
         plt.legend()
 
         plt.tight_layout()
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300)
         plt.close()
 
