@@ -53,3 +53,12 @@ if conda_env_name not in conda_env_list:
 else:
     print(f"Conda environment '{conda_env_name}' exists. If well installed, you may use the SAM3-based detection and tracking.")
 
+# Check if baboontrack package is installed
+try:
+    import baboontrack
+    print("baboontrack package is installed. Version:", baboontrack.__version__)
+except ImportError:
+    print("Error: baboontrack package is not installed. Please install it to proceed:")
+    print(f"1. Activate your virtual environment: {activate_env}")
+    print(f"2. Install the package: {install_pip}")
+
