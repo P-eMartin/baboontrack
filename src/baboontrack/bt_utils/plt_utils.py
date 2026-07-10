@@ -507,12 +507,10 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues, noid_name="
     # Move NoID to the end
     if noid_name in classes:
         # Sorted order of classes with NoID at the end
-        sorted_classes = sorted([cls for cls in classes if cls != noid_name]) + [noid_name]
-        # Create a mapping from old index to new index
-        index_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate([classes.index(cls) for cls in sorted_classes])}
-        # Reorder the confusion matrix
-        cm = np.array([[cm[old_idx, old_jdx] for old_jdx in range(len(classes))] for old_idx in range(len(classes))])
-        cm = cm[[index_mapping[i] for i in range(len(classes))], :]
+        perm = [i for i, c in enumerate(classes) if c != noid_name]
+        perm.append(classes.index(noid_name))
+        cm = cm[np.ix_(perm, perm)]
+        classes = [classes[i] for i in perm]
 
      # Normalization (row_wise)
     cm_normalized = (cm.T / np.maximum(cm.sum(axis=1), 1)).T
