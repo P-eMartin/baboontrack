@@ -1,9 +1,39 @@
-# BaboonTrack: Automated Detection, Tracking and Individual Identification of Baboons
-This is a package to perform detection, tracking and classification of Baboons.
+# BaboonTrack: An Open-Source Pipeline for Automated Detection, Tracking and Individual Identification of Baboons and more
+
+<p align="center">
+  <img src="docs/demo.gif" width="900">
+</p>
+
+> 🚧 **Work in progress.** BaboonTrack is under active development. APIs, models and output formats may change between releases.
+
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Status](https://img.shields.io/badge/status-active%20development-orange)
+
+This package provides an end-to-end pipeline for **detecting, tracking and identifying individual baboons** in videos. It is designed to facilitate behavioural and ecological studies by automatically processing long video sequences and producing detection, tracking and identity predictions together with evaluation metrics.
 
 ## Description
 
-TODO
+BaboonTrack is an open-source Python package for automated analysis of baboon videos. It combines modern computer vision models into a unified pipeline capable of:
+
+- 🦍 Detecting baboons in images and videos.
+- 🎯 Tracking individuals across frames.
+- 👤 Identifying known individuals from facial appearance.
+- 📊 Evaluating detection, tracking and identification performance using standard metrics (COCO, MOTChallenge and identity classification).
+
+The package is designed to be modular, allowing different detectors, trackers and classifiers to be easily compared. It can be used either as:
+
+- a Python library:
+  ```python
+  import baboontrack
+  baboontrack.run(input_video="video.mp4")
+  ```
+
+- or from the command line:
+  ```bash
+  baboontrack -i video.mp4
+  ```
+
+Although the project currently focuses on baboons, most components are generic and can be adapted to other species with appropriate models, prompts and training data.
 
 ## Dependencies
 
@@ -125,12 +155,7 @@ baboontrack -h
 ``` python
 import baboontrack
 baboontrack.run(input_video="input_video.mp4")
-```
-
-For more information on possible options:
-
-``` python
-import baboontrack
+# More information on possible options
 baboontrack.run(help=True)
 ```
 
@@ -139,7 +164,7 @@ baboontrack.run(help=True)
 If you wish to modify your own local version and run it:
 
 ```
-python -m src.baboontrack -i input_video.mp4
+python -m src.baboontrack.cli -i input_video.mp4
 ```
 
 ## Update baboontrack
