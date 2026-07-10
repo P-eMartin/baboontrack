@@ -1173,7 +1173,7 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             save_path=eval_file,
             ignore_classes=ignore_classes,
             cm=cm,
-            pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else None,
+            pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else '',
         )
         if cm:
             cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))
@@ -1260,6 +1260,7 @@ def final_evaluation(args, main_output, log=None):
             os.path.join(main_output, 'final_evaluation', 'class_eval'),
             ignore_noid=True,
             cm=True,
+            pr=True,
             log=log
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
