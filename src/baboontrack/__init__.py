@@ -1,1 +1,3 @@
-from .baboontrack import run
+from .pipeline import run
+
+__all__ = ["run"]

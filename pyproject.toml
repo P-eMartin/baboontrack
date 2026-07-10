@@ -37,6 +37,9 @@ dependencies = [
     # "bioread>=3.0.0"
 ]
 
+[project.scripts]
+baboontrack = "baboontrack.cli:main"
+
 [project.urls]
-Homepage = "https://github.com/P-eMartin/packaging_baboontrack"
-Issues = "https://github.com/P-eMartin/packaging_baboontrack/issues"
+Homepage = "https://github.com/P-eMartin/baboontrack"
+Issues = "https://github.com/P-eMartin/baboontrack/issues"

@@ -1,5 +1,4 @@
-# Packaging BaboonTrack
-
+# BaboonTrack: Automated Detection, Tracking and Individual Identification of Baboons
 This is a package to perform detection, tracking and classification of Baboons.
 
 ## Description
@@ -17,7 +16,7 @@ This package highly depends on [MegaDetector](https://megadetector.readthedocs.i
 If you downloaded this repository, make sure you to enter the following commands at the level of the package folder.
 
 ```
-cd packaging_baboontrack
+cd baboontrack
 ```
 
 ### Virtual environment (good practice)
@@ -164,4 +163,4 @@ Doc is also available in the `docs` folder of this repository.
 
 If you use this program, please cite this work:
 
-TODO
+WORK IN PROGRESS - contact the repo owner.
