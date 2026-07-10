@@ -1,13 +1,13 @@
 # BaboonTrack: An Open-Source Pipeline for Automated Detection, Tracking and Individual Identification of Baboons and more
 
-<p align="center">
-  <img src="docs/demo.gif" width="900">
-</p>
-
 > 🚧 **Work in progress.** BaboonTrack is under active development. APIs, models and output formats may change between releases.
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Status](https://img.shields.io/badge/status-active%20development-orange)
+
+<p align="center">
+  <img src="docs/demo.gif" width="900">
+</p>
 
 This package provides an end-to-end pipeline for **detecting, tracking and identifying individual baboons** in videos. It is designed to facilitate behavioural and ecological studies by automatically processing long video sequences and producing detection, tracking and identity predictions together with evaluation metrics.
 
