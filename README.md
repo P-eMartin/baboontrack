@@ -106,16 +106,22 @@ pip install "numpy<2.0"
 
 You may [download ffmpeg](https://ffmpeg.org/download.html) for your distribution in order to create video outputs. 
 
-<!-- ## Running physiotip
+## Running baboontrack
 
-In python:
+### From the terminal
 
-``` python
-import physiotip
-physiotip.run(gui=True)
+```
+baboontrack --input_video video.mp4
 ```
 
-For more information on possible options without graphical interface:
+### In python:
+
+``` python
+import baboontrack
+baboontrack.run(input_video="video.mp4")
+```
+
+For more information on possible options:
 
 ``` python
 import physiotip
@@ -129,7 +135,7 @@ import physiotip
 import os
 ti_video = os.path.join('data','ti1')
 physiotip.run(inputfolder=ti_video, gui=True)
-``` -->
+```
 
 ## Update baboontrack
 
