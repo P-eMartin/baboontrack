@@ -419,7 +419,8 @@ class MyClassifier:
             for path in paths:
                 feature, _ = self.extract_feature(path)
                 if feature is None:
-                    print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
+                    # print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
+                    pass
                 else:
                     id_features.append(feature)
             if len(id_features) == 0:

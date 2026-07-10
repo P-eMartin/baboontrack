@@ -15,8 +15,8 @@ import csv
 import os
 import copy
 import re
-from .io_utils import print_and_log, save_json_file, get_value_with_precision, save_dict_as_csv, zip_folder
-from .json_utils import load_json_file
+from .io_utils import print_and_log, get_value_with_precision, save_dict_as_csv, zip_folder
+from .json_utils import load_json_file, save_json_file
 from collections import defaultdict
 import zipfile
 from .bot_sort.tracking_utils.evaluation import Evaluator
