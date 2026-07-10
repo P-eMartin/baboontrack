@@ -321,13 +321,13 @@ class MyClassifier:
             x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_det, format='xyxy')
             # max, min and closest integer
             x1, y1, x2, y2 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1))), int(min(image.shape[1], np.ceil(x2))), int(min(image.shape[0], np.ceil(y2)))
-            # 1 chance over 100 to save the source image and det image in .tmp folder for debugging with parameters in the name and idx (len of the dest folder)
-            if np.random.rand() < 0.01:
+            # 1 chance over 1000 to save the source image and det image in .tmp folder for debugging with parameters in the name and idx (len of the dest folder)
+            if np.random.rand() < 0.001:
                 dest_folder = f'.tmp/extracted_roi/{self.name}/'
                 os.makedirs(dest_folder, exist_ok=True)
                 idx = len(os.listdir(dest_folder))
                 cv2.imwrite(os.path.join(dest_folder, f'{idx}_source.jpg'), image)
-                cv2.imwrite(os.path.join(dest_folder, f'{idx}_roi.jpg'), image[y1:y2, x1:x2])
+                cv2.imwrite(os.path.join(dest_folder, f'{idx}_roi_score{scores[best_idx]:.2f}.jpg'), image[y1:y2, x1:x2])
             image = self.read_image_pil(image[y1:y2, x1:x2])
             bbox = (x1, y1, x2-x1, y2-y1)
         else:

@@ -853,12 +853,12 @@ def main_loop(args, log=None):
         feat_avg = [False]
         # nca = [True, False]
         nca = [True]
-        epochs = [100, 200]
-        lr = [1e-3, 1e-4, 1e-5]
+        epochs = [200]
+        lr = [1e-4, 1e-5]
         # roi_factors = [1.0, 1.1, 0.9]
         roi_factors = [1.0]
         # roi_dets = [1.0, 1.1, 0.9]
-        roi_dets = [1, 1.5, 2, 3]
+        roi_dets = [1, 2.5]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
