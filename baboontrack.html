@@ -18,17 +18,15 @@
         <input id="togglestate" type="checkbox" aria-hidden="true" tabindex="-1">
         <div>
 
-            <input type="search" placeholder="Search..." role="searchbox" aria-label="search"
-                   pattern=".+" required>
 
 
-            <h2>Submodules</h2>
-            <ul>
-                    <li><a href="baboontrack/baboontrack.html">baboontrack</a></li>
-                    <li><a href="baboontrack/gui.html">gui</a></li>
-                    <li><a href="baboontrack/help.html">help</a></li>
-                    <li><a href="baboontrack/bt_utils.html">bt_utils</a></li>
-            </ul>
+
+            <h2>API Documentation</h2>
+                <ul class="memberlist">
+            <li>
+                    <a class="function" href="#run">run</a>
+            </li>
+    </ul>
 
 
 
@@ -49,192 +47,84 @@ baboontrack    </h1>
 
                         <label class="view-source-button" for="mod-baboontrack-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.baboontrack</span><span class="w"> </span><span class="kn">import</span> <span class="n">run</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">run</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">2</span></a>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">3</span></a><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;run&quot;</span><span class="p">]</span>
 </span></pre></div>
 
 
             </section>
+                <section id="run">
+                            <input id="run-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">run</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">):</span></span>
+
+                <label class="view-source-button" for="run-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#run"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="run-1193"><a href="#run-1193"><span class="linenos">1193</span></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="run-1194"><a href="#run-1194"><span class="linenos">1194</span></a><span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+</span><span id="run-1195"><a href="#run-1195"><span class="linenos">1195</span></a><span class="sd">    Run BaboonTrack with arguments.</span>
+</span><span id="run-1196"><a href="#run-1196"><span class="linenos">1196</span></a>
+</span><span id="run-1197"><a href="#run-1197"><span class="linenos">1197</span></a><span class="sd">    Args:</span>
+</span><span id="run-1198"><a href="#run-1198"><span class="linenos">1198</span></a><span class="sd">        kwargs: dict, the arguments</span>
+</span><span id="run-1199"><a href="#run-1199"><span class="linenos">1199</span></a>
+</span><span id="run-1200"><a href="#run-1200"><span class="linenos">1200</span></a><span class="sd">    Returns:</span>
+</span><span id="run-1201"><a href="#run-1201"><span class="linenos">1201</span></a><span class="sd">        int, 1 if BaboonTrack finished</span>
+</span><span id="run-1202"><a href="#run-1202"><span class="linenos">1202</span></a><span class="sd">    &#39;&#39;&#39;</span>
+</span><span id="run-1203"><a href="#run-1203"><span class="linenos">1203</span></a>    <span class="c1"># Check arguments</span>
+</span><span id="run-1204"><a href="#run-1204"><span class="linenos">1204</span></a>    <span class="n">args</span> <span class="o">=</span> <span class="n">check_args</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="run-1205"><a href="#run-1205"><span class="linenos">1205</span></a>
+</span><span id="run-1206"><a href="#run-1206"><span class="linenos">1206</span></a>    <span class="n">main_funct</span> <span class="o">=</span> <span class="n">main_loop</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">loop</span> <span class="k">else</span> <span class="n">main</span>
+</span><span id="run-1207"><a href="#run-1207"><span class="linenos">1207</span></a>
+</span><span id="run-1208"><a href="#run-1208"><span class="linenos">1208</span></a>    <span class="c1"># Send arguments to main</span>
+</span><span id="run-1209"><a href="#run-1209"><span class="linenos">1209</span></a>    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">gui</span><span class="p">:</span>
+</span><span id="run-1210"><a href="#run-1210"><span class="linenos">1210</span></a>        <span class="c1"># Use GUI</span>
+</span><span id="run-1211"><a href="#run-1211"><span class="linenos">1211</span></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">.gui</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_with_gui</span>
+</span><span id="run-1212"><a href="#run-1212"><span class="linenos">1212</span></a>        <span class="n">run_with_gui</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">main_funct</span><span class="p">,</span> <span class="n">check_args_fct</span><span class="o">=</span><span class="n">infer_args_name</span><span class="p">)</span>
+</span><span id="run-1213"><a href="#run-1213"><span class="linenos">1213</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="run-1214"><a href="#run-1214"><span class="linenos">1214</span></a>        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="run-1215"><a href="#run-1215"><span class="linenos">1215</span></a>        <span class="n">log</span> <span class="o">=</span> <span class="n">setup_logger</span><span class="p">(</span><span class="n">log_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.log&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">_%H-%M&quot;</span><span class="p">))))</span>
+</span><span id="run-1216"><a href="#run-1216"><span class="linenos">1216</span></a>        <span class="n">print_and_log</span><span class="p">(</span><span class="s1">&#39;Starting BaboonTrack without GUI with arguments: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">vars</span><span class="p">(</span><span class="n">args</span><span class="p">))),</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+</span><span id="run-1217"><a href="#run-1217"><span class="linenos">1217</span></a>        <span class="c1"># Check if input is video or has frames. If not, loop over the folder and process each video or set of frames separately.</span>
+</span><span id="run-1218"><a href="#run-1218"><span class="linenos">1218</span></a>        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">((</span><span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="s1">&#39;.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;.jpeg&#39;</span><span class="p">))</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">))):</span>
+</span><span id="run-1219"><a href="#run-1219"><span class="linenos">1219</span></a>            <span class="n">main_funct</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+</span><span id="run-1220"><a href="#run-1220"><span class="linenos">1220</span></a>        <span class="k">else</span><span class="p">:</span>
+</span><span id="run-1221"><a href="#run-1221"><span class="linenos">1221</span></a>            <span class="n">main_output</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+</span><span id="run-1222"><a href="#run-1222"><span class="linenos">1222</span></a>            <span class="n">input_list</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input_video</span><span class="p">)])</span>
+</span><span id="run-1223"><a href="#run-1223"><span class="linenos">1223</span></a>            <span class="k">for</span> <span class="n">input_path</span> <span class="ow">in</span> <span class="n">input_list</span><span class="p">:</span>
+</span><span id="run-1224"><a href="#run-1224"><span class="linenos">1224</span></a>                <span class="n">args</span><span class="o">.</span><span class="n">input_video</span> <span class="o">=</span> <span class="n">input_path</span>
+</span><span id="run-1225"><a href="#run-1225"><span class="linenos">1225</span></a>                <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">main_output</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">input_path</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+</span><span id="run-1226"><a href="#run-1226"><span class="linenos">1226</span></a>                <span class="n">main_funct</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+</span><span id="run-1227"><a href="#run-1227"><span class="linenos">1227</span></a>            <span class="c1"># In folder case, perform a final evaluation on all the videos together if ground truth is available</span>
+</span><span id="run-1228"><a href="#run-1228"><span class="linenos">1228</span></a>            <span class="n">final_evaluation</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">main_output</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+</span><span id="run-1229"><a href="#run-1229"><span class="linenos">1229</span></a>        <span class="n">close_log</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
+</span><span id="run-1230"><a href="#run-1230"><span class="linenos">1230</span></a>    <span class="c1"># Finish</span>
+</span><span id="run-1231"><a href="#run-1231"><span class="linenos">1231</span></a>    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;BaboonTrack finished.&#39;</span><span class="p">)</span>
+</span><span id="run-1232"><a href="#run-1232"><span class="linenos">1232</span></a>    <span class="k">return</span> <span class="mi">1</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Run BaboonTrack with arguments.</p>
+
+<h6 id="arguments">Arguments:</h6>
+
+<ul>
+<li><strong>kwargs:</strong>  dict, the arguments</li>
+</ul>
+
+<h6 id="returns">Returns:</h6>
+
+<blockquote>
+  <p>int, 1 if BaboonTrack finished</p>
+</blockquote>
+</div>
+
+
+                </section>
     </main>
-<script>
-    function escapeHTML(html) {
-        return document.createElement('div').appendChild(document.createTextNode(html)).parentNode.innerHTML;
-    }
-
-    const originalContent = document.querySelector("main.pdoc");
-    let currentContent = originalContent;
-
-    function setContent(innerHTML) {
-        let elem;
-        if (innerHTML) {
-            elem = document.createElement("main");
-            elem.classList.add("pdoc");
-            elem.innerHTML = innerHTML;
-        } else {
-            elem = originalContent;
-        }
-        if (currentContent !== elem) {
-            currentContent.replaceWith(elem);
-            currentContent = elem;
-        }
-    }
-
-    function getSearchTerm() {
-        return (new URL(window.location)).searchParams.get("search");
-    }
-
-    const searchBox = document.querySelector(".pdoc input[type=search]");
-    searchBox.addEventListener("input", function () {
-        let url = new URL(window.location);
-        if (searchBox.value.trim()) {
-            url.hash = "";
-            url.searchParams.set("search", searchBox.value);
-        } else {
-            url.searchParams.delete("search");
-        }
-        history.replaceState("", "", url.toString());
-        onInput();
-    });
-    window.addEventListener("popstate", onInput);
-
-
-    let search, searchErr;
-
-    async function initialize() {
-        try {
-            search = await new Promise((resolve, reject) => {
-                const script = document.createElement("script");
-                script.type = "text/javascript";
-                script.async = true;
-                script.onload = () => resolve(window.pdocSearch);
-                script.onerror = (e) => reject(e);
-                script.src = "search.js";
-                document.getElementsByTagName("head")[0].appendChild(script);
-            });
-        } catch (e) {
-            console.error("Cannot fetch pdoc search index");
-            searchErr = "Cannot fetch search index.";
-        }
-        onInput();
-
-        document.querySelector("nav.pdoc").addEventListener("click", e => {
-            if (e.target.hash) {
-                searchBox.value = "";
-                searchBox.dispatchEvent(new Event("input"));
-            }
-        });
-    }
-
-    function onInput() {
-        setContent((() => {
-            const term = getSearchTerm();
-            if (!term) {
-                return null
-            }
-            if (searchErr) {
-                return `<h3>Error: ${searchErr}</h3>`
-            }
-            if (!search) {
-                return "<h3>Searching...</h3>"
-            }
-
-            window.scrollTo({top: 0, left: 0, behavior: 'auto'});
-
-            const results = search(term);
-
-            let html;
-            if (results.length === 0) {
-                html = `No search results for '${escapeHTML(term)}'.`
-            } else {
-                html = `<h4>${results.length} search result${results.length > 1 ? "s" : ""} for '${escapeHTML(term)}'.</h4>`;
-            }
-            for (let result of results.slice(0, 10)) {
-                let doc = result.doc;
-                let url = `${doc.modulename.replaceAll(".", "/")}.html`;
-                if (doc.qualname) {
-                    url += `#${doc.qualname}`;
-                }
-
-                let heading;
-                switch (result.doc.kind) {
-                    case "function":
-                        if (doc.fullname.endsWith(".__init__")) {
-                            heading = `<span class="name">${doc.fullname.replace(/\.__init__$/, "")}</span>${doc.signature}`;
-                        } else {
-                            heading = `<span class="def">${doc.funcdef}</span> <span class="name">${doc.fullname}</span>${doc.signature}`;
-                        }
-                        break;
-                    case "class":
-                        heading = `<span class="def">class</span> <span class="name">${doc.fullname}</span>`;
-                        if (doc.bases)
-                            heading += `<wbr>(<span class="base">${doc.bases}</span>)`;
-                        heading += `:`;
-                        break;
-                    case "variable":
-                        heading = `<span class="name">${doc.fullname}</span>`;
-                        if (doc.annotation)
-                            heading += `<span class="annotation">${doc.annotation}</span>`;
-                        if (doc.default_value)
-                            heading += `<span class="default_value"> = ${doc.default_value}</span>`;
-                        break;
-                    default:
-                        heading = `<span class="name">${doc.fullname}</span>`;
-                        break;
-                }
-                html += `
-                        <section class="search-result">
-                        <a href="${url}" class="attr ${doc.kind}">${heading}</a>
-                        <div class="docstring">${doc.doc}</div>
-                        </section>
-                    `;
-
-            }
-            return html;
-        })());
-    }
-
-    if (getSearchTerm()) {
-        initialize();
-        searchBox.value = getSearchTerm();
-        onInput();
-    } else {
-        searchBox.addEventListener("focus", initialize, {once: true});
-    }
-
-    searchBox.addEventListener("keydown", e => {
-        if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
-            let focused = currentContent.querySelector(".search-result.focused");
-            if (!focused) {
-                currentContent.querySelector(".search-result").classList.add("focused");
-            } else if (
-                e.key === "ArrowDown"
-                && focused.nextElementSibling
-                && focused.nextElementSibling.classList.contains("search-result")
-            ) {
-                focused.classList.remove("focused");
-                focused.nextElementSibling.classList.add("focused");
-                focused.nextElementSibling.scrollIntoView({
-                    behavior: "smooth",
-                    block: "nearest",
-                    inline: "nearest"
-                });
-            } else if (
-                e.key === "ArrowUp"
-                && focused.previousElementSibling
-                && focused.previousElementSibling.classList.contains("search-result")
-            ) {
-                focused.classList.remove("focused");
-                focused.previousElementSibling.classList.add("focused");
-                focused.previousElementSibling.scrollIntoView({
-                    behavior: "smooth",
-                    block: "nearest",
-                    inline: "nearest"
-                });
-            } else if (
-                e.key === "Enter"
-            ) {
-                focused.querySelector("a").click();
-            }
-        }
-    });
-</script></body>
+</body>
 </html>
