@@ -501,30 +501,38 @@ def generate_colormap_with_legend(min_val=0, max_val=1, width=50, height=720, fo
     return colormap_jet
 
 
-def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues, noid_name="NoID"):
     cm = np.asarray(cm)
 
-    # -------------------------
-    # ACCURACY
-    # -------------------------
-    acc = np.trace(cm) / np.sum(cm) * 100 if np.sum(cm) != 0 else 0
+    # Move NoID to the end
+    if noid_name in classes:
+        # Sorted order of classes with NoID at the end
+        sorted_classes = sorted([cls for cls in classes if cls != noid_name]) + [noid_name]
+        # Create a mapping from old index to new index
+        index_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate([classes.index(cls) for cls in sorted_classes])}
+        # Reorder the confusion matrix
+        cm = np.array([[cm[old_idx, old_jdx] for old_jdx in range(len(classes))] for old_idx in range(len(classes))])
+        cm = cm[[index_mapping[i] for i in range(len(classes))], :]
 
-    # -------------------------
-    # NORMALIZATION (ROW-WISE)
-    # -------------------------
+     # Normalization (row_wise)
     cm_normalized = (cm.T / np.maximum(cm.sum(axis=1), 1)).T
 
-    acc_2 = np.diag(cm_normalized)
-    mean_acc = np.mean(acc_2) * 100
-    std_acc = np.std(acc_2) * 100
+    # Accuracy
+    if noid_name in classes:
+        acc = np.trace(cm[:-1, :-1]) / np.sum(cm[:-1, :-1]) * 100 if np.sum(cm[:-1, :-1]) != 0 else 0
+        acc_normalized = np.diag(cm_normalized[:-1, :-1])
+    else:
+        acc = np.trace(cm) / np.sum(cm) * 100 if np.sum(cm) != 0 else 0
+        acc_normalized = np.diag(cm_normalized)
 
-    title = f'Accuracy of {acc:.1f}%\n$\\mu$ = {mean_acc:.1f} with $\\sigma$ = {std_acc:.1f}'
+    mean_acc = np.mean(acc_normalized) * 100
+    std_acc = np.std(acc_normalized) * 100
+
+    title = 'Accuracy of %.2g%%%s\n$\\mu$ = %.1g with $\\sigma$ = %.1g' % (acc, ' (without noID)' if noid_name in classes else '', mean_acc, std_acc)
 
     n = len(classes)
 
-    # -------------------------
     # TOTALS
-    # -------------------------
     row_sum = cm.sum(axis=1)  # GT distribution
     col_sum = cm.sum(axis=0)  # predicted distribution
 
@@ -534,9 +542,7 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
     row_sum_norm = row_sum / max(total, 1)
     col_sum_norm = col_sum / max(total, 1)
 
-    # -------------------------
     # EXTENDED MATRIX (N+1)
-    # -------------------------
     cm_ext = np.zeros((n + 1, n + 1), dtype=float)
     cm_ext[:n, :n] = cm_normalized
 
@@ -549,9 +555,7 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
     # bottom-right corner (global total)
     cm_ext[n, n] = 1.0  # represents 100% of dataset mass
 
-    # -------------------------
     # FIGURE SIZE
-    # -------------------------
     if n >= 12:
         plt.figure(figsize=(12, 12))
     elif n >= 6:
@@ -565,9 +569,7 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
     plt.title(title, fontsize=16)
     plt.colorbar(im, fraction=0.046, pad=0.04)
 
-    # -------------------------
     # LABELS
-    # -------------------------
     ax.set_xticks(np.arange(n + 1))
     ax.set_yticks(np.arange(n + 1))
 
@@ -576,9 +578,7 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues):
 
     ax.invert_yaxis()
 
-    # -------------------------
     # TEXT ANNOTATION
-    # -------------------------
     thresh = cm_ext.max() / 2.
 
     for i in range(n + 1):

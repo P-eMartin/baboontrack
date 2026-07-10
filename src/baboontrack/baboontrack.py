@@ -1132,7 +1132,7 @@ def check_args(**kwargs):
     args.display_fct = None
     return args
 
-def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, log=None):
+def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, pr_path='', log=None):
     gt_file_per_video = {}
     pred_files_per_method_per_video = {}
     for video_output in video_outputs:
@@ -1173,6 +1173,7 @@ def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             save_path=eval_file,
             ignore_classes=ignore_classes,
             cm=cm,
+            pr=pr_path
         )
         if cm:
             cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))

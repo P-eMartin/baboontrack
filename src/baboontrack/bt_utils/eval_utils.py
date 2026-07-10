@@ -7,6 +7,7 @@ import json
 import time
 import sys
 PYTHON_VERSION = sys.version_info[0]
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 # To avoid the error "AttributeError: module 'numpy' has no attribute 'asfarray'" when using motmetrics
@@ -206,6 +207,95 @@ class myCOCOeval(COCOeval):
                 cm[gt_idx, -1] += 1
         labels = cat_ids + ["FP/FN"]
         return cm, labels
+    
+    def plot_pr_curve(self, cat_id=None, iouThr=0.5, area="all", maxDet=None, save_path=None):
+        """
+        Plot COCO Precision-Recall curves.
+
+        Args:
+            cat_id (int or None):
+                Category ID to plot. If None, plots all categories.
+            iouThr (float):
+                IoU threshold to display (default=0.5).
+            area (str):
+                One of self.params.areaRngLbl (default="all").
+            maxDet (int or None):
+                maxDet value to use. Defaults to largest available.
+            save_path (str or None):
+                If provided, saves the figure instead of displaying it.
+        """
+        if self.eval is None or "precision" not in self.eval:
+            raise RuntimeError(
+                "Call evaluate() and accumulate() before plotting PR curves."
+            )
+
+        precision = self.eval["precision"]
+        recall = self.params.recThrs
+
+        # IoU index
+        try:
+            t = np.where(np.isclose(self.params.iouThrs, iouThr))[0][0]
+        except IndexError:
+            raise ValueError(f"IoU={iouThr} not found. Available: {self.params.iouThrs}")
+
+        # Area index
+        try:
+            a = self.params.areaRngLbl.index(area)
+        except ValueError:
+            raise ValueError(f"Unknown area '{area}'. Choices: {self.params.areaRngLbl}")
+
+        # maxDet index
+        if maxDet is None:
+            m = len(self.params.maxDets) - 1
+            maxDet = self.params.maxDets[m]
+        else:
+            try:
+                m = self.params.maxDets.index(maxDet)
+            except ValueError:
+                raise ValueError(f"maxDet={maxDet} not found. Choices: {self.params.maxDets}")
+
+        plt.figure(figsize=(6, 6))
+
+        if cat_id is None:
+            cat_ids = [
+                cid for cid in self.params.catIds
+                if cid not in self.ignore_classes
+            ]
+        else:
+            if cat_id not in self.params.catIds:
+                raise ValueError(f"Category {cat_id} not evaluated.")
+            if cat_id in self.ignore_classes:
+                raise ValueError(
+                    f"Category {cat_id} is ignored and should not be plotted."
+                )
+            cat_ids = [cat_id]
+
+        for cid in cat_ids:
+            k = self.params.catIds.index(cid)
+            p = precision[t, :, k, a, m]
+            valid = p > -1
+            if not np.any(valid):
+                continue
+            ap = np.mean(p[valid])
+
+            # Use category name if available
+            try:
+                name = self.cocoGt.loadCats([cid])[0]["name"]
+            except Exception:
+                name = str(cid)
+            plt.plot(recall[valid], p[valid], lw=2, label=f"{name} (AP={ap:.3f})")
+
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.title(f"Precision-Recall Curve @ IoU={iouThr:.2f}")
+        plt.xlim(0, 1)
+        plt.ylim(0, 1.02)
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=300)
+        plt.close()
 
 '''
 Helper
@@ -710,7 +800,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
 #####
 ## Evaluation of the detection and tracking results
 #####
-def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False):
+def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr=''):
     """
     Run COCO evaluation and return metrics as a flat dictionary.
 
@@ -719,6 +809,7 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False):
         detection_file: str, path to the detection JSON file or zip file in COCO format
         ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
         cm: bool, whether to compute the confusion matrix (default False)
+        pr: str, path to save the precision-recall curve (default empty string)
 
     Returns:
         dict, the evaluation results
@@ -752,10 +843,12 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False):
     }
     if cm:
         metrics["cm"] = my_eval.compute_cm()
+    if pr:
+        my_eval.plot_pr_curve(save_path=pr)
     return metrics
 
 
-def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False):
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False, pr=''):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -766,11 +859,12 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
         extra_info: dict (optional), additional metadata to include in the evaluation results
         ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
         cm: bool, whether to compute the confusion matrix (default False)
+        pr: str, path to save the precision-recall curve (default empty string)
 
     Returns:
         dict, the evaluation results
     '''
-    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm)
+    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm, pr=pr)
     if save_path is not None:
         update_eval_csv(
             csv_path=save_path,
