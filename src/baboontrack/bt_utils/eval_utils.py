@@ -22,6 +22,7 @@ from .json_utils import load_json_file
 from collections import defaultdict
 import zipfile
 from .bot_sort.tracking_utils.evaluation import Evaluator
+from .plt_utils import plot_confusion_matrix
 
 class myCOCO(COCO):
     '''
@@ -1057,3 +1058,57 @@ def merge_coco_formats(gt_files, detection_files, output_folder):
     save_json_file(merged_gt, merged_gt_file)
     save_json_file(merged_dt, merged_dt_file)
     return merged_gt_file, merged_dt_file
+
+'''
+Global Evaluation Functions
+'''
+def merge_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, pr=False, log=None):
+    gt_file_per_video = {}
+    pred_files_per_method_per_video = {}
+    for video_output in video_outputs:
+        gt_file = os.path.join(video_output, gt_file_name)
+        if not os.path.exists(gt_file):
+            print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
+            continue
+        pred_folders = [
+            os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) \
+                if os.path.isfile(os.path.join(video_output, preds_folder_name, f, 'detections.json'))
+        ]
+        gt_file_per_video[video_output] = gt_file
+        for pred_folder in pred_folders:
+            method_name = os.path.basename(pred_folder)
+            if method_name not in pred_files_per_method_per_video:
+                pred_files_per_method_per_video[method_name] = {}
+            pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_folder, 'detections.json')
+    for method_name in pred_files_per_method_per_video:
+        # Skip methods that do not have predictions for all videos
+        if len(pred_files_per_method_per_video[method_name]) != len(gt_file_per_video):
+            print_and_log('Method %s does not have predictions for all videos. Skipping evaluation for this method.' % (method_name), log=log)
+            continue
+        gt_file, method_pred = merge_coco_formats(
+            gt_file_per_video.values(),
+            pred_files_per_method_per_video[method_name].values(),
+            os.path.join(output_merges, '%s_merged.json' % (method_name)),
+        )
+        categories = {c['id']: c['name'] for c in load_json_file(gt_file)['categories']}
+        if ignore_noid:
+            # Get the key of the "NoID" class from categories
+            ignore_classes = [k for k, v in categories.items() if v == 'NoID']
+        else:
+            ignore_classes = []
+        eval_results = evaluate_detection(
+            gt_file,
+            method_pred,
+            name='%s' % (method_name),
+            save_path=eval_file,
+            ignore_classes=ignore_classes,
+            cm=cm,
+            pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else '',
+        )
+        if cm:
+            cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))
+            os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+            conf_matrix = eval_results['cm'][0]
+            c_idxs = eval_results['cm'][1]
+            plot_confusion_matrix(conf_matrix, [categories[i] if i in categories else i for i in c_idxs], cm_path)
+        print_and_log('\tMethod %s: %s' % (method_name, str({k: v for k, v in eval_results.items() if k != 'cm'})), log=log)

@@ -8,7 +8,6 @@ import copy
 import torch
 from argparse import ArgumentParser
 import pdb
-from scipy.ndimage import gaussian_filter
 from collections import defaultdict
 
 # Megadetector
@@ -20,16 +19,15 @@ print('OpenCV version: %s' % (cv2.__version__))
 print('PyTorch version: %s' % (torch.__version__))
 
 # Utility functions
-from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision
+from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, find_file_with_ending
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator, apply_roi_factor
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
-    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_coco_formats, \
+    save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_eval_coco, \
     merge_mot_formats
 from .bt_utils.sam3_utils import process_video_with_sam, compute_mask_iou
 from .bt_utils.classifier import MyClassifier, build_image_paths_dict, resolve_class_assignments
-from .bt_utils.plt_utils import plot_confusion_matrix
 
 # Help variables
 from .help import *
@@ -557,29 +555,6 @@ def false_check(log=None):
         bool, False, to indicate that the process should not be stopped.
     '''
     return False
-
-def find_file_with_ending(file_path, endings):
-    '''
-    Find a file with a specific ending in the given path.
-
-    Args:
-        file_path: str, the path to search for the file
-        endings: list of str, the list of endings to search for
-
-    Returns:
-        str or None, the path to the found file or None if not found
-    '''
-    name = os.path.basename(file_path)
-    folder = os.path.dirname(file_path)
-    if os.path.isfile(file_path):
-        return file_path
-    elif os.path.isdir(folder):
-        for ending in endings:
-            for root, dirs, files in os.walk(folder):
-                for file in files:
-                    if file.endswith(name+ending):
-                        return os.path.join(root, file)
-    return None
 
 def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     '''
@@ -1132,57 +1107,6 @@ def check_args(**kwargs):
     args.display_fct = None
     return args
 
-def final_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, pr=False, log=None):
-    gt_file_per_video = {}
-    pred_files_per_method_per_video = {}
-    for video_output in video_outputs:
-        gt_file = os.path.join(video_output, gt_file_name)
-        if not os.path.exists(gt_file):
-            print_and_log('No ground truth file found for video %s. Skipping evaluation for this video.' % (video_output), log=log)
-            continue
-        pred_folders = [
-            os.path.join(video_output, preds_folder_name, f) for f in os.listdir(os.path.join(video_output, preds_folder_name)) \
-                if os.path.isfile(os.path.join(video_output, preds_folder_name, f, 'detections.json'))
-        ]
-        gt_file_per_video[video_output] = gt_file
-        for pred_folder in pred_folders:
-            method_name = os.path.basename(pred_folder)
-            if method_name not in pred_files_per_method_per_video:
-                pred_files_per_method_per_video[method_name] = {}
-            pred_files_per_method_per_video[method_name][video_output] = os.path.join(pred_folder, 'detections.json')
-    for method_name in pred_files_per_method_per_video:
-        # Skip methods that do not have predictions for all videos
-        if len(pred_files_per_method_per_video[method_name]) != len(gt_file_per_video):
-            print_and_log('Method %s does not have predictions for all videos. Skipping evaluation for this method.' % (method_name), log=log)
-            continue
-        gt_file, method_pred = merge_coco_formats(
-            gt_file_per_video.values(),
-            pred_files_per_method_per_video[method_name].values(),
-            os.path.join(output_merges, '%s_merged.json' % (method_name)),
-        )
-        categories = {c['id']: c['name'] for c in load_json_file(gt_file)['categories']}
-        if ignore_noid:
-            # Get the key of the "NoID" class from categories
-            ignore_classes = [k for k, v in categories.items() if v == 'NoID']
-        else:
-            ignore_classes = []
-        eval_results = evaluate_detection(
-            gt_file,
-            method_pred,
-            name='%s' % (method_name),
-            save_path=eval_file,
-            ignore_classes=ignore_classes,
-            cm=cm,
-            pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else '',
-        )
-        if cm:
-            cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))
-            os.makedirs(os.path.dirname(cm_path), exist_ok=True)
-            conf_matrix = eval_results['cm'][0]
-            c_idxs = eval_results['cm'][1]
-            plot_confusion_matrix(conf_matrix, [categories[i] if i in categories else i for i in c_idxs], cm_path)
-        print_and_log('\tMethod %s: %s' % (method_name, str({k: v for k, v in eval_results.items() if k != 'cm'})), log=log)
-
 def final_evaluation(args, main_output, log=None):
     '''
     Perform a final evaluation on all the videos together if ground truth is available.
@@ -1198,7 +1122,7 @@ def final_evaluation(args, main_output, log=None):
         start_time = time.time()
         eval_file = os.path.join(main_output, 'det_eval.csv')
         print_and_log('Performing final detection evaluation on all videos together...', log=log)
-        final_eval_coco(
+        merge_eval_coco(
             video_outputs,
             eval_file,
             'gt_det_coco_format.json',
@@ -1252,7 +1176,7 @@ def final_evaluation(args, main_output, log=None):
         # Evaluate classification results
         start_time = time.time()
         eval_file = os.path.join(main_output, 'class_eval.csv')
-        final_eval_coco(
+        merge_eval_coco(
             video_outputs,
             eval_file,
             'gt_class_coco_format.json',

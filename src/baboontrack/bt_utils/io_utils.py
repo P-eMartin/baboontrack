@@ -208,6 +208,29 @@ def zip_folder(folder_to_zip, output_file):
                 zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.dirname(output_file)))
     return 1
 
+def find_file_with_ending(file_path, endings):
+    '''
+    Find a file with a specific ending in the given path.
+
+    Args:
+        file_path: str, the path to search for the file
+        endings: list of str, the list of endings to search for
+
+    Returns:
+        str or None, the path to the found file or None if not found
+    '''
+    name = os.path.basename(file_path)
+    folder = os.path.dirname(file_path)
+    if os.path.isfile(file_path):
+        return file_path
+    elif os.path.isdir(folder):
+        for ending in endings:
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    if file.endswith(name+ending):
+                        return os.path.join(root, file)
+    return None
+
 def get_all_files_in_folder(folder_path, all_files=None, extensions=None):
     '''
     Get all files in a folder and subfolders with specific extensions.
