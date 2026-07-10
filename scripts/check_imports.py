@@ -56,7 +56,8 @@ else:
 # Check if baboontrack package is installed
 try:
     import baboontrack
-    print("baboontrack package is installed. Version:", baboontrack.__version__)
+    from importlib.metadata import version
+    print("baboontrack package is installed. Version:", version("baboontrack"))
 except ImportError:
     print("Error: baboontrack package is not installed. Please install it to proceed:")
     print(f"1. Activate your virtual environment: {activate_env}")

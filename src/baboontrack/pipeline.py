@@ -990,10 +990,3 @@ def run(**kwargs):
     # Finish
     print('BaboonTrack finished.')
     return 1
-
-if __name__ == '__main__':
-    # Run BaboonTrack
-    run()
-
-    # Exit
-    sys.exit(0)

@@ -111,30 +111,35 @@ You may [download ffmpeg](https://ffmpeg.org/download.html) for your distributio
 ### From the terminal
 
 ```
-baboontrack --input_video video.mp4
+baboontrack -i input_video.mp4
 ```
 
-### In python:
+For more information on possible options:
+
+```
+baboontrack -h
+```
+
+### In python
 
 ``` python
 import baboontrack
-baboontrack.run(input_video="video.mp4")
+baboontrack.run(input_video="input_video.mp4")
 ```
 
 For more information on possible options:
 
 ``` python
-import physiotip
-physiotip.run(help=True)
+import baboontrack
+baboontrack.run(help=True)
 ```
 
-Run with provided images:
+### Your own local version
 
-``` python
-import physiotip
-import os
-ti_video = os.path.join('data','ti1')
-physiotip.run(inputfolder=ti_video, gui=True)
+If you wish to modify your own local version and run it:
+
+```
+python -m src.baboontrack -i input_video.mp4
 ```
 
 ## Update baboontrack
