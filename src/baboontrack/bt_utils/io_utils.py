@@ -1,5 +1,4 @@
 
-from collections import defaultdict
 import os
 import logging
 import numpy as np
@@ -9,7 +8,6 @@ import datetime
 import subprocess
 import csv
 import zipfile
-from .json_utils import save_json_file
 
 '''
 Print and log functions

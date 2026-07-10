@@ -3,8 +3,6 @@ import numpy as np # type: ignore
 import os
 import torch # type: ignore
 import gc
-import sys
-import pdb
 from pycocotools import mask as mask_utils # type: ignore
 try:
     from json_utils import save_json_file, save_dict_to_txt

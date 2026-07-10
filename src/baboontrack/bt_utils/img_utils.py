@@ -1,6 +1,5 @@
 
 import os
-import pdb
 from tracemalloc import start
 import cv2
 from matplotlib.pyplot import step
@@ -15,7 +14,6 @@ import time
 import subprocess
 import re
 import shutil
-
 from .io_utils import progress_bar
 
 '''
