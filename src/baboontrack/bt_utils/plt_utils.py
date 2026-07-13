@@ -526,7 +526,7 @@ def plot_confusion_matrix(cm, classes, save_path, cmap=plt.cm.Blues, noid_name="
     mean_acc = np.mean(acc_normalized) * 100
     std_acc = np.std(acc_normalized) * 100
 
-    title = 'Accuracy of %.2g%%%s\n$\\mu$ = %.1g with $\\sigma$ = %.1g' % (acc, ' (without noID)' if noid_name in classes else '', mean_acc, std_acc)
+    title = 'Accuracy of %.3g%%%s\n$\\mu$ = %.3g with $\\sigma$ = %.3g' % (acc, ' (without noID)' if noid_name in classes else '', mean_acc, std_acc)
 
     n = len(classes)
 
