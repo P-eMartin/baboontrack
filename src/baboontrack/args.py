@@ -158,6 +158,11 @@ def get_args():
         help=helptext_roi_det
     )
     parser.add_argument(
+        '-a', '--avg_score',
+        action='store_true',
+        help=helptext_avg_score
+    )
+    parser.add_argument(
         '-e', '--eval_detection',
         action='store_true',
         help=helptext_eval_detection

@@ -131,7 +131,8 @@ class PrimateFaceDetector:
         return bboxes, scores
 
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, epochs=100, lr=1e-4, roi_det=1.0, name_database='', log=None):
+    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4,
+                 epochs=100, lr=1e-4, roi_det=1.0, name_database='', avg_score=False, log=None):
         self.log = log
         # Load the model
         # model = torch.load(model_path, map_location=device)
@@ -145,6 +146,7 @@ class MyClassifier:
         self.epochs = epochs
         self.lr = lr
         self.roi_det = roi_det
+        self.avg_score = avg_score
 
         # Define the transform
         self.transform = T.Compose([
@@ -457,9 +459,15 @@ class MyClassifier:
             else:
                 best_score = -1
                 for track_feat in track_feats:
+                    if self.avg_score:
+                        best_score = -1
                     for ref_feat in ref_feats:
                         score = cosine_similarity(track_feat, ref_feat)
                         if score > best_score:
                             best_score = score
-                scores[identity] = best_score
+                    if self.avg_score:
+                        if identity not in scores:
+                            scores[identity] = []
+                        scores[identity].append(best_score)
+                scores[identity] = np.mean(scores[identity]) if self.avg_score else best_score
         return scores
