@@ -837,7 +837,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    testing = True
+    testing = False
     if testing:
         det_models = ['sam3']
         prompts = ['a baboon']
@@ -864,13 +864,13 @@ def main_loop(args, log=None):
         # nca = [True, False]
         nca = [True]
         epochs = [200]
-        lr = [1e-4, 1e-5]
+        lr = [1e-4]
         # roi_factors = [1.0, 1.1, 0.9]
         roi_factors = [1.0]
         # roi_dets = [1.0, 1.1, 0.9]
         roi_dets = [1, 2.5]
         avg_scores = [False, True]
-        sim_ths = [0]
+        sim_ths = [0, 0.5, 0.7]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -1031,7 +1031,10 @@ def run(**kwargs):
             main_output = copy.deepcopy(args.output)
             input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
             if args.num_workers:
-                with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+                args.parser = None
+                import multiprocessing as mp
+                ctx = mp.get_context("spawn")
+                with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=ctx) as executor:
                     futures = [executor.submit(_process_video, args, input_path, main_output, main_funct, log) for input_path in input_list]
                 # propagate exceptions
                 for f in futures:
