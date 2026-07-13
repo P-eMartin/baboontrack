@@ -198,6 +198,12 @@ def get_args():
         action='store_true',
         help=helptext_save_mot
     )
+    parser.add_argument(
+        '-w', '--num_workers',
+        default=0,
+        type=int,
+        help=helptext_num_workers
+    )
     args = parser.parse_args()
     args.parser = parser
     infer_args_name(args)

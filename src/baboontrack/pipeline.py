@@ -8,6 +8,7 @@ import datetime
 import copy
 import torch
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 
 # Megadetector
 from megadetector.detection import run_detector
@@ -622,7 +623,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
             print_and_log('No ground truth file found for evaluation. Skipping evaluation.', log=log)
         else:
             # With class ID being the track id but also the det ID
-            boundaries = extract_boundaries(gt_file_class_mot, log=log)
+            # boundaries = extract_boundaries(gt_file_class_mot, log=log)
+            boundaries = None
             gt_dict_mot_cat, gt_labels = load_mot_format(gt_file_class_mot, boundaries=boundaries)
 
     # Detection
@@ -835,20 +837,20 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    testing = False
+    testing = True
     if testing:
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['sam3']
         class_det_types = ['primateface', '']
-        feat_avg = [True, False]
-        nca = [True, False]
-        epochs = [100]
+        feat_avg = [False]
+        nca = [True]
+        epochs = [200]
         lr = [1e-4]
-        roi_factors = [1.1]
-        roi_dets = [1.1]
-        avg_scores = [True]
-        sim_ths = [0.5]
+        roi_factors = [1.0]
+        roi_dets = [2.5]
+        avg_scores = [False, True]
+        sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     else:
         # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
         det_models = ['sam3']
@@ -868,7 +870,7 @@ def main_loop(args, log=None):
         # roi_dets = [1.0, 1.1, 0.9]
         roi_dets = [1, 2.5]
         avg_scores = [False, True]
-        sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9]
+        sim_ths = [0]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -992,6 +994,12 @@ def final_evaluation(args, main_output, log=None):
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
+def _process_video(args, input_path, main_output, main_funct, log=None):
+    args = copy.deepcopy(args)
+    args.input_video = input_path
+    args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+    main_funct(args, log=log)
+
 def run(**kwargs):
     '''
     Run BaboonTrack with arguments.
@@ -1022,10 +1030,15 @@ def run(**kwargs):
         else:
             main_output = copy.deepcopy(args.output)
             input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            for input_path in input_list:
-                args.input_video = input_path
-                args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
-                main_funct(args, log=log)
+            if args.num_workers:
+                with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+                    futures = [executor.submit(_process_video, args, input_path, main_output, main_funct, log) for input_path in input_list]
+                # propagate exceptions
+                for f in futures:
+                    f.result()
+            else:
+                for input_path in input_list:
+                    _process_video(args, input_path ,main_output, main_funct, log=log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)

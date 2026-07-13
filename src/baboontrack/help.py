@@ -151,3 +151,8 @@ The classification model will be trained on these images to classify the detecte
 
 helptext_save_mot = '''Save the results in MOT format. This can be useful for uploading the results to an annotation tool like CVAT or for further analysis.
 '''
+
+helptext_num_workers = '''Number of workers to use for parallel processing. Default: 0 (no parallel processing).
+This parameter determines how many worker processes will be used to process the videos in parallel.
+However, using multiple workers can lead to increased memory usage and potential issues with GPU memory allocation, especially when using CUDA.
+'''
