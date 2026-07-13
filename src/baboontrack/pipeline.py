@@ -589,7 +589,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     if (args.eval_detection or args.eval_tracking or args.eval_classification):
         # If Gt file not provided, try to find it using video name + .zip or + _MOT.zip
         if gt_file_class_mot is None:
-            gt_file_class_mot = find_file_with_ending(my_video.path[:-4], ['.zip', '_MOT.zip'])
+            gt_file_class_mot = find_file_with_ending(my_video.path[:-4], ['.zip'])
         if gt_file_class_mot is None:
             print_and_log('No ground truth file found for evaluation. Skipping evaluation.', log=log)
         else:
@@ -642,6 +642,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
                 "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
+            log=log
         )
         print_and_log('Detection evaluation results: %s' % (str(eval_results)), log=log)
 
@@ -750,7 +751,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
                 "video_length": len(my_video),
                 "resolution": "%dx%d" % (image_size[0], image_size[1])
             },
-            ignore_classes=[gt['id'] for gt in gt_dict_coco_class['categories'] if gt['name'] == noid_str]
+            ignore_classes=[gt['id'] for gt in gt_dict_coco_class['categories'] if gt['name'] == noid_str],
+            log=log
         )
         print_and_log('Classification evaluation results: %s' % (str(eval_results)), log=log)
 

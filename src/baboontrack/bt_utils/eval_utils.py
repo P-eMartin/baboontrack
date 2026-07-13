@@ -26,7 +26,7 @@ class myCOCO(COCO):
     '''
     Modified version of Coco where enmpty detections are handled gracefully instead of raising an error.
     '''
-    def loadRes(self, resFile):
+    def loadRes(self, resFile, ignore_idx_mismatch=True, log=None):
         """
         Load result file and return a result api object.
 
@@ -51,8 +51,23 @@ class myCOCO(COCO):
             anns = resFile
         assert type(anns) == list, 'results in not an array of objects'
         annsImgIds = [ann['image_id'] for ann in anns]
-        assert set(annsImgIds) == (set(annsImgIds) & set(self.getImgIds())), \
-               'Results do not correspond to current coco set'
+        if set(annsImgIds) != (set(annsImgIds) & set(self.getImgIds())):
+            if ignore_idx_mismatch:
+                missing_img_ids = [i for i in set(annsImgIds) if i not in set(self.getImgIds())]
+                print_and_log(f'Warning: The following image IDs are in the results but not in the ground truth: {missing_img_ids}. Adding them to the dataset.', log=log)
+                # Add the missing images to the res dataset with empty annotations and using the same resolution as the first image in the ground truth dataset
+                resolution = self.dataset['images'][0]['width'], self.dataset['images'][0]['height']
+                for img_id in missing_img_ids:
+                    self.dataset['images'].append({
+                        'id': img_id,
+                        'width': resolution[0],
+                        'height': resolution[1]
+                    })
+                # Update the indexes of the ground truth dataset
+                self.createIndex()
+            else:
+                raise Exception('Results do not correspond to current coco set')
+            
         # Case when the results are empty
         if len(anns) == 0:
             print('Results is empty.')
@@ -800,7 +815,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
 #####
 ## Evaluation of the detection and tracking results
 #####
-def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr=''):
+def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr='', log=None):
     """
     Run COCO evaluation and return metrics as a flat dictionary.
 
@@ -820,7 +835,7 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr=''):
     # if len(load_json_file(detection_file)) == 0:
     #     coco_dt = coco_gt.loadRes([{'image_id':1,'id':0,'category_id':1,'bbox':[0,0,0,0],'score':0}])
     # else:
-    coco_dt = coco_gt.loadRes(detection_file)
+    coco_dt = coco_gt.loadRes(detection_file, log=log)
     
     my_eval = myCOCOeval(coco_gt, coco_dt, iouType="bbox", ignore_classes=ignore_classes)
     my_eval.evaluate()
@@ -848,7 +863,7 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr=''):
     return metrics
 
 
-def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False, pr=''):
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False, pr='', log=None):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -864,7 +879,7 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
     Returns:
         dict, the evaluation results
     '''
-    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm, pr=pr)
+    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm, pr=pr, log=log)
     if save_path is not None:
         update_eval_csv(
             csv_path=save_path,
@@ -1102,6 +1117,7 @@ def merge_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             ignore_classes=ignore_classes,
             cm=cm,
             pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else '',
+            log=log
         )
         if cm:
             cm_path = os.path.join(os.path.dirname(eval_file), 'confusion_matrices', '%s.png' % (method_name))

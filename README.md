@@ -132,6 +132,17 @@ mim install mmpose
 pip install "numpy<2.0"
 ```
 
+### Check installation
+
+**Linux and MacOS:**
+```
+python scripts/check_imports.py
+```
+**Windows:**
+```
+python scripts\check_imports.py
+```
+
 ### ffmpeg (facultative)
 
 You may [download ffmpeg](https://ffmpeg.org/download.html) for your distribution in order to create video outputs. 
