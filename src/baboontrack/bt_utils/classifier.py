@@ -24,13 +24,13 @@ def avg_features(track_features):
         avg_feature_dict[key] = torch.stack(features).mean(dim=0)
     return avg_feature_dict
 
-def resolve_class_assignments(track_class_dict, class_threshold=0.5, noid_str='NoID'):
+def resolve_class_assignments(track_class_dict, sim_th=0.5, noid_str='NoID'):
     '''Resolve the class assignments for each track based on the scores, a threshold and overlapping tracks using while.
     If no score is above the threshold, assign "NoID" class.
 
     Args:
         track_class_dict: dict, a dictionary containing the scores for each track and class, as well as the indexes of the detections corresponding to each track
-        class_threshold: float, the threshold to consider a score as valid for class assignment
+        sim_th: float, similarity threshold to consider two tracks as same class
 
     Returns:
         final_assignments: dict, a dictionary containing the final class assignment for each track
@@ -59,7 +59,7 @@ def resolve_class_assignments(track_class_dict, class_threshold=0.5, noid_str='N
         ranking = ranked_classes[track_id]
         while choice_idx[track_id] < len(ranking):
             cls, score = ranking[choice_idx[track_id]]
-            if score >= class_threshold:
+            if score >= sim_th:
                 return cls, score
             break
         return noid_str, 0.0
@@ -469,5 +469,5 @@ class MyClassifier:
                         if identity not in scores:
                             scores[identity] = []
                         scores[identity].append(best_score)
-                scores[identity] = np.mean(scores[identity]) if self.avg_score else best_score
+                scores[identity] = np.mean(scores[identity]) if self.avg_score and 'identity' in scores else best_score
         return scores

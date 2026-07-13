@@ -387,7 +387,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
-def classify(detection_dict, my_video, output_file, class_database='', class_threshold=0.5, image_size=None, device='cpu',
+def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
              roi_det=1.0, avg_score=False, noid_str='NoID', source_roi='', log=None):
     '''
@@ -398,7 +398,7 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
         my_video: VideoFrameIterator, the video to process
         output_file: str, the path to save the output file
         class_database: str, the path to the classification dictionary
-        class_threshold: float, the threshold for class assignment
+        sim_th: float, similarity threshold for class assignment (default 0.5)
         image_size: tuple, the size of the image (width, height)
         device: str, the device to use for feature extraction (default 'cpu')
         class_det: str, the type of detector to use for classification (default None)
@@ -431,16 +431,11 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
 
     ## Classification routine
     if class_database:
-        ## Set my_video to bgr extraction for classification
-        if not my_video.checked:
-            my_video.check_video()
-        my_video.bgr = True
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
         my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
                                      feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
                                      name_database=os.path.basename(class_database), log=log)
-        my_classifier.build_database(img_path_dict)
 
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
@@ -449,11 +444,17 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
         if source_roi:
             roi_path = os.path.join(os.path.dirname(output_file), 'rois', source_roi) 
             os.makedirs(roi_path, exist_ok=True)
-        track_class_dict_path = output_file.replace('.json', '_track_class_dict.json')
+        # Remove sim_th from the filename to allow reusing the same track_class_dict for different sim_th values
+        track_class_dict_path = os.path.join(os.path.dirname(output_file), 'track_class', os.path.basename(output_file).replace('_simth-%g' % sim_th, ''))
+        os.makedirs(os.path.dirname(track_class_dict_path), exist_ok=True)
         if os.path.exists(track_class_dict_path):
             print_and_log('Loading track_class_dict from %s' % (track_class_dict_path), log=log)
             track_class_dict = load_json_file(track_class_dict_path)
+            track_class_dict = {int(k): v for k, v in track_class_dict.items()}  # Convert keys to int
         else:
+            # Build the database of features for the classifier
+            print_and_log('Building the database of features for the classifier from %s' % (class_database), log=log)
+            my_classifier.build_database(img_path_dict)
             track_class_dict = defaultdict(list)
             start_loop = time.time()
             for idx, (track_id, track_dets) in enumerate(track_dict.items()):
@@ -463,17 +464,26 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
                     len(track_dict),
                     'Classifying tracks.%s' % ('(%ds left)' % (elapsed_time/idx*(len(track_dict)-idx)) if idx > 0 else '')
                 )
-                dict_path_features = output_file.replace('_avg_score', '').replace('.json', '_track_%d_features.json' % track_id)
-                if os.path.exists(dict_path_features):
-                    print_and_log('Loading features for track %d from %s' % (track_id, dict_path_features), log=log)
-                    tmp_track_dict = load_json_file(dict_path_features)
-                    features = tmp_track_dict['features']
-                    idxs = tmp_track_dict['idxs']
-                    extra_bboxs = tmp_track_dict['extra_bboxes']
+                track_features_path = os.path.join(
+                    os.path.dirname(output_file),
+                    'features',
+                    os.path.basename(output_file).replace('_avg_score', '').replace('_simth-%g' % sim_th, '').replace('.json', ''),
+                    'track_%d.pt' % track_id
+                )
+                if os.path.exists(track_features_path):
+                    print_and_log('Loading features for track %d from %s' % (track_id, track_features_path), log=log)
+                    track_features = torch.load(track_features_path, map_location=device)
+                    features = track_features['features']
+                    idxs = track_features['idxs']
+                    extra_bboxs = track_features['extra_bboxes']
                 else:
                     features = []
                     idxs = []
                     extra_bboxs = {}
+                    ## Set my_video to bgr extraction for classification
+                    if not my_video.checked:
+                        my_video.check_video()
+                    my_video.bgr = True
                     ### If source_roi is provided and the roi files already exist, load them instead of extracting them again
                     if source_roi and os.path.exists(os.path.join(roi_path, 'track_%d' % track_id)) and len(os.listdir(os.path.join(roi_path, 'track_%d' % track_id))) == len(track_dets):
                         for det in track_dets:
@@ -504,8 +514,9 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
                     # Save the features, idxs and extra bboxes for this track in a dict file
-                    tmp_track_dict = {'features': features, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
-                    save_json_file(tmp_track_dict, dict_path_features)
+                    track_features = {'features': [f.cpu() for f in features], 'idxs': idxs, 'extra_bboxes': extra_bboxs}
+                    os.makedirs(os.path.dirname(track_features_path), exist_ok=True)
+                    torch.save(track_features, track_features_path)
                 track_class_dict[track_id] = {
                     'scores': my_classifier.get_class_scores(features),
                     'idxs': idxs,
@@ -514,9 +525,8 @@ def classify(detection_dict, my_video, output_file, class_database='', class_thr
             progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
             # Save the track_class_dict for future use
             save_json_file(track_class_dict, track_class_dict_path)
-
         ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks.
-        final_assignments = resolve_class_assignments(track_class_dict, class_threshold=class_threshold)
+        final_assignments = resolve_class_assignments(track_class_dict, sim_th=sim_th)
     else:
         print_and_log(f'No classification dictionary provided. Assigning {noid_str} class to all tracks.', log=log)
         final_assignments = {}
@@ -722,6 +732,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     classi_name += '_featavg' if args.feat_avg else ''
     classi_name += '_nca_%d-%g' % (args.epochs, args.lr) if args.nca else ''
     classi_name += '_avg_score' if args.avg_score else ''
+    classi_name += '_simth-%g' % (args.sim_th)
     class_dict = classify(
         tracking_dict,
         my_video,
@@ -739,6 +750,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         roi_factor=args.roi_factor,
         roi_det=args.roi_det,
         avg_score=args.avg_score,
+        sim_th=args.sim_th,
         noid_str=noid_str,
         source_roi=source_roi,
         log=log
@@ -836,6 +848,7 @@ def main_loop(args, log=None):
         roi_factors = [1.1]
         roi_dets = [1.1]
         avg_scores = [True]
+        sim_ths = [0.5]
     else:
         # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
         det_models = ['sam3']
@@ -855,6 +868,7 @@ def main_loop(args, log=None):
         # roi_dets = [1.0, 1.1, 0.9]
         roi_dets = [1, 2.5]
         avg_scores = [False, True]
+        sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9]
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -880,19 +894,21 @@ def main_loop(args, log=None):
                                             args.roi_det = roi_det
                                             for avg_score in avg_scores:
                                                 args.avg_score = avg_score
-                                                print_and_log('Running det %s%s and tracker %s%s' % (
-                                                    det_model,
-                                                    ' with prompt "%s"' % (prompt) if prompt else '',
-                                                    tracker_type,
-                                                    ' with classification%s%s%s%s' % (
-                                                        ' with %s' % (class_det) if class_det else '',
-                                                        ' with feat avg' if feat else '',
-                                                        ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
-                                                        ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                                    )
-                                                ), log=log)
-                                                main(args, log=log)
-                                                args.input_video.reset_video()
+                                                for sim_th in sim_ths:
+                                                    args.sim_th = sim_th
+                                                    print_and_log('Running det %s%s and tracker %s%s' % (
+                                                        det_model,
+                                                        ' with prompt "%s"' % (prompt) if prompt else '',
+                                                        tracker_type,
+                                                        ' with classification%s%s%s%s' % (
+                                                            ' with %s' % (class_det) if class_det else '',
+                                                            ' with feat avg' if feat else '',
+                                                            ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
+                                                            ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                                        )
+                                                    ), log=log)
+                                                    main(args, log=log)
+                                                    args.input_video.reset_video()
 
 def final_evaluation(args, main_output, log=None):
     '''

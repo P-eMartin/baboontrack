@@ -163,6 +163,12 @@ def get_args():
         help=helptext_avg_score
     )
     parser.add_argument(
+        '-S', '--sim_th',
+        default=0.5,
+        type=float,
+        help=helptext_sim_th
+    )
+    parser.add_argument(
         '-e', '--eval_detection',
         action='store_true',
         help=helptext_eval_detection

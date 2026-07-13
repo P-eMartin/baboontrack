@@ -110,6 +110,11 @@ helptext_avg_score = '''Use the average score for each class when classifying th
 When enabled, the classifier will compute the average score of the best score retrieved for each sample in our datavase over the track.
 '''
 
+helptext_sim_th = '''Threshold for class assignment using similarity. Default: 0.5.
+This threshold determines the minimum similarity score required for a detected Baboon to be assigned to a class.
+A higher threshold will result in more conservative class assignments, potentially reducing false positives but increase the percentage of unclassified Baboons.
+'''
+
 helptext_feat_avg = '''Use the average features for each class when classifying the detected Baboons. Default: False.
 When enabled, the classifier will compute the average feature vector for each class based on the training data and average the features of each
 track. This can help improve classification accuracy, especially in cases where the individual feature vectors may be noisy or inconsistent.
