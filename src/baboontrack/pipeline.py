@@ -1022,7 +1022,8 @@ def run(**kwargs):
         run_with_gui(args, main_funct, check_args_fct=infer_args_name)
     else:
         os.makedirs(os.path.join(args.output, 'logs'), exist_ok=True)
-        log = setup_logger(log_file=os.path.join(args.output, 'logs', '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))))
+        log_file = os.path.join(args.output, 'logs', '%s.log' % (datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")))
+        log = setup_logger(log_file=log_file)
         print_and_log('Starting BaboonTrack without GUI with arguments: %s' % (str(vars(args))), log=log)
         # Check if input is video or has frames. If not, loop over the folder and process each video or set of frames separately.
         if os.path.isfile(args.input_video) or (os.path.isdir(args.input_video) and any(os.path.isfile(os.path.join(args.input_video, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in os.listdir(args.input_video))):
@@ -1035,7 +1036,13 @@ def run(**kwargs):
                 import multiprocessing as mp
                 ctx = mp.get_context("spawn")
                 with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=ctx) as executor:
-                    futures = [executor.submit(_process_video, args, input_path, main_output, main_funct, log) for input_path in input_list]
+                    futures = [executor.submit(
+                        _process_video,
+                        args,
+                        input_path,
+                        main_output,
+                        main_funct,
+                        setup_logger(log_file=log_file.replace('.log', '_%d.log' % idx))) for idx, input_path in enumerate(input_list)]
                 # propagate exceptions
                 for f in futures:
                     f.result()
