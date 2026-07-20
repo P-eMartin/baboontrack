@@ -161,6 +161,18 @@ For more information on possible options:
 baboontrack -h
 ```
 
+To run only the detection and tracking (default sam3 for both with the prompt "a babon") and save the results as 'mot' format, using 'm' flag, in order to export them for coorecting the inferences and annotate the tracks:
+
+```
+baboontrack -i /shared/data_to_annotate/ -o /shared/output_baboon_track_det/ -m
+```
+
+To run and evaluate on annotated data using several methods, use flags 'e', 'E', 'C' to evaluate repectively detection, tracking and classification, 'd' with path of the database including subfolders with pictures of the individual to recognize, 'l' for looping over several methods, and 'w' with the number of parallel process you want to launch (default only one process):
+
+```
+baboontrack -i /shared/annotated_data/ -o /shared/annotated_data_ouput -P /shared/group_dict_10-07 -eECl -w 8
+```
+
 ### In python
 
 ``` python

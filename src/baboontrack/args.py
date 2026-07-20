@@ -101,7 +101,7 @@ def get_args():
     )
     parser.add_argument(
         '-P', '--class_database',
-        default=os.path.join('/shared', 'group_dict_10-07'),
+        default='',
         type=str,
         help=helptext_class_database
     )
