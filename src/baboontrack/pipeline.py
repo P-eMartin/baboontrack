@@ -853,7 +853,7 @@ def main_loop(args, log=None):
         sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     else:
         # det_models = ['MDv5a', 'MDv5b', 'sam3', 'sam3_det']
-        det_models = ['sam3']
+        det_models = ['sam3', 'MDv5a', 'MDv5b']
         # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         prompts = ['a baboon', 'an animal']
         # tracker_types = ['IoU', 'bytetrack', 'deepsort', 'botsort', 'sam3']

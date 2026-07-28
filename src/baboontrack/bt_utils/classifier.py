@@ -469,5 +469,5 @@ class MyClassifier:
                         if identity not in scores:
                             scores[identity] = []
                         scores[identity].append(best_score)
-                scores[identity] = np.mean(scores[identity]) if self.avg_score and 'identity' in scores else best_score
+                scores[identity] = np.mean(scores[identity]) if self.avg_score and identity in scores else best_score
         return scores
