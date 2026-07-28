@@ -417,21 +417,21 @@ class MyClassifier:
             self.train_nca(dataloader, epochs=self.epochs, lr=self.lr)
         self.database = {}
         for class_id, paths in image_paths.items():
-            id_features = []
+            id_features = {}
             for path in paths:
                 feature, _ = self.extract_feature(path)
                 if feature is None:
                     # print_and_log(f"Little Warning: Could not extract feature from image {path}. But don't worry, other images from the same class will be used.", log=self.log)
                     pass
                 else:
-                    id_features.append(feature)
+                    id_features[path] = feature
             if len(id_features) == 0:
                 print_and_log(f"Warning: No feature could be extracted for class {class_id}. This class cannot be used for classification.", log=self.log)
                 self.database[class_id] = None
             elif self.feat_avg:
-                avg_feat = torch.stack(id_features).mean(dim=0)
+                avg_feat = torch.stack(id_features.values()).mean(dim=0)
                 avg_feat /= avg_feat.norm()
-                self.database[class_id] = avg_feat
+                self.database[class_id]['averaged_feature'] = avg_feat
             else:
                 self.database[class_id] = id_features
 
@@ -445,29 +445,43 @@ class MyClassifier:
 
         Returns:
             scores: dict, a dictionary of best scores for each class
+            paths: dict, a dictionary of source paths corresponding to the best scores for each class
+            idx_feats: dict, a dictionary of indexes of the features corresponding to the best scores for each class
         '''
         scores = {}
+        paths_ref = {}
+        path_feats = {}
         if self.feat_avg and len(track_feats) > 0:
             avg_track_feat = torch.stack(track_feats).mean(dim=0)
             avg_track_feat /= avg_track_feat.norm()
         for identity, ref_feats in self.database.items():
             if ref_feats is None:
                 scores[identity] = -1
+                paths_ref[identity] = None
+                path_feats[identity] = None
                 continue
             if self.feat_avg and len(track_feats) > 0:
-                scores[identity] = cosine_similarity(avg_track_feat, ref_feats)
+                scores[identity] = cosine_similarity(avg_track_feat, ref_feats['averaged_feature'])
+                paths_ref[identity] = 'averaged_feature'
+                path_feats[identity] = None
             else:
                 best_score = -1
-                for track_feat in track_feats:
+                best_path_feat = None
+                best_path_ref = None
+                for path_feat, track_feat in track_feats.items():
                     if self.avg_score:
                         best_score = -1
-                    for ref_feat in ref_feats:
+                    for path_ref_feat, ref_feat in ref_feats.items():
                         score = cosine_similarity(track_feat, ref_feat)
                         if score > best_score:
                             best_score = score
+                            best_path_feat = path_feat
+                            best_path_ref = path_ref_feat
                     if self.avg_score:
                         if identity not in scores:
                             scores[identity] = []
                         scores[identity].append(best_score)
                 scores[identity] = np.mean(scores[identity]) if self.avg_score and identity in scores else best_score
-        return scores
+                paths_ref[identity] = best_path_ref if not self.avg_score else None
+                path_feats[identity] = best_path_feat if not self.avg_score else None
+        return scores, paths_ref, path_feats

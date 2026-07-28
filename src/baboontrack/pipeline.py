@@ -478,7 +478,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                     idxs = track_features['idxs']
                     extra_bboxs = track_features['extra_bboxes']
                 else:
-                    features = []
+                    features = {}
                     idxs = []
                     extra_bboxs = {}
                     ## Set my_video to bgr extraction for classification
@@ -494,7 +494,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             feature, extra_bbox = my_classifier.extract_feature(roi_file)
                             if feature is None:
                                 continue
-                            features.append(feature)
+                            features[roi_file] = feature
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
                     else:
@@ -508,18 +508,23 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                                 roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
                                 os.makedirs(os.path.dirname(roi_file), exist_ok=True)
                                 cv2.imwrite(roi_file, img_cropped)
+                            else:
+                                roi_file = 'track_%d_frame_%d' % (track_id, frame_idx)
                             feature, extra_bbox = my_classifier.extract_feature(img_cropped)
                             if feature is None:
                                 continue
-                            features.append(feature)
+                            features[roi_file] = feature
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
                     # Save the features, idxs and extra bboxes for this track in a dict file
-                    track_features = {'features': [f.cpu() for f in features], 'idxs': idxs, 'extra_bboxes': extra_bboxs}
+                    track_features = {'features': {key: f.cpu() for key, f in features.items()}, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
                     os.makedirs(os.path.dirname(track_features_path), exist_ok=True)
                     torch.save(track_features, track_features_path)
+                scores, paths_ref, path_feats = my_classifier.get_class_scores(features)
                 track_class_dict[track_id] = {
-                    'scores': my_classifier.get_class_scores(features),
+                    'scores': scores,
+                    'paths_ref': paths_ref,
+                    'path_feats': path_feats,
                     'idxs': idxs,
                     'extra_bboxes': extra_bboxs
                 }
@@ -547,17 +552,26 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
             # Reassign the class and score based on the classification results
             det['category_id'] = class_to_idx[assigned_class]
             det['score'] = assigned_score
-            # Save the extra bbox if available
-            if track_id in track_class_dict and 'extra_bboxes' in track_class_dict[track_id]:
-                extra_bbox = track_class_dict[track_id]['extra_bboxes'].get(det['image_id']-1)
-                if extra_bbox is not None:
-                    # Normalize the extra bbox coordinates to be in the range [0, 1] relative to the image size
-                    det['extra_bbox'] = [
-                        float(extra_bbox[0] / image_size[0]),
-                        float(extra_bbox[1] / image_size[1]),
-                        float(extra_bbox[2] / image_size[0]),
-                        float(extra_bbox[3] / image_size[1])
-                    ]
+            # Save the extra keys for visua and analysis
+            if track_id in track_class_dict:
+                # Save the extra bbox coordinates if available
+                if 'extra_bboxes' in track_class_dict[track_id]:
+                    extra_bbox = track_class_dict[track_id]['extra_bboxes'].get(det['image_id']-1)
+                    if extra_bbox is not None:
+                        # Normalize the extra bbox coordinates to be in the range [0, 1] relative to the image size
+                        det['extra_bbox'] = [
+                            float(extra_bbox[0] / image_size[0]),
+                            float(extra_bbox[1] / image_size[1]),
+                            float(extra_bbox[2] / image_size[0]),
+                            float(extra_bbox[3] / image_size[1])
+                        ]
+                # Save the path to the reference image if available
+                if 'paths_ref' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['paths_ref']:
+                    det['path_ref'] = track_class_dict[track_id]['paths_ref'][assigned_class]
+                # Save the path to the feature file if available
+                if 'path_feats' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['path_feats']:
+                    det['path_feats'] = track_class_dict[track_id]['path_feats'][assigned_class]
+            
     track_ids = list(set(track_ids))
     n_tracks = len(track_ids)
     # Saving
