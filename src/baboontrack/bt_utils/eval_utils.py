@@ -113,6 +113,24 @@ class myCOCO(COCO):
         res.dataset['annotations'] = anns
         res.createIndex()
         return res
+    
+def bbox_iou(box1, box2):
+            """
+            COCO bbox format: [x, y, w, h]
+            """
+            x1, y1, w1, h1 = box1
+            x2, y2, w2, h2 = box2
+            xa = max(x1, x2)
+            ya = max(y1, y2)
+            xb = min(x1 + w1, x2 + w2)
+            yb = min(y1 + h1, y2 + h2)
+            inter = max(0, xb - xa) * max(0, yb - ya)
+            if inter == 0:
+                return 0.0
+            area1 = w1 * h1
+            area2 = w2 * h2
+
+            return inter / (area1 + area2 - inter)
 
 class myCOCOeval(COCOeval):
     '''
@@ -155,24 +173,6 @@ class myCOCOeval(COCOeval):
         # last row = FP
         # last col = FN
         cm = np.zeros((n + 1, n + 1), dtype=np.int64)
-
-        def bbox_iou(box1, box2):
-            """
-            COCO bbox format: [x, y, w, h]
-            """
-            x1, y1, w1, h1 = box1
-            x2, y2, w2, h2 = box2
-            xa = max(x1, x2)
-            ya = max(y1, y2)
-            xb = min(x1 + w1, x2 + w2)
-            yb = min(y1 + h1, y2 + h2)
-            inter = max(0, xb - xa) * max(0, yb - ya)
-            if inter == 0:
-                return 0.0
-            area1 = w1 * h1
-            area2 = w2 * h2
-
-            return inter / (area1 + area2 - inter)
 
         for img_id in self.params.imgIds:
             gt = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=[img_id]))
@@ -311,6 +311,249 @@ class myCOCOeval(COCOeval):
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300)
         plt.close()
+    
+    def export_best_worst_classifications(self, save_dir, n=50, unique_reference=True):
+        """
+        Export HTML reports of classification performance.
+
+        Generates:
+            - best.html
+            - worst.html
+            - reference_quality.html
+
+        Parameters
+        ----------
+        save_dir : str
+            Output folder.
+
+        n : int
+            Number of samples for best/worst reports.
+
+        unique_reference : bool
+            If True, keep only one sample per reference image for best/worst.
+        """
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        # ----------------------------------------------------
+        # Recover GT labels from IoU matching
+        # ----------------------------------------------------
+        gt_lookup = {}
+
+        for img_id in self.params.imgIds:
+
+            gt = self.cocoGt.loadAnns(
+                self.cocoGt.getAnnIds(imgIds=[img_id])
+            )
+
+            dt = self.cocoDt.loadAnns(
+                self.cocoDt.getAnnIds(imgIds=[img_id])
+            )
+
+            matched = set()
+
+            for d in sorted(dt, key=lambda x: -x["score"]):
+
+                best = None
+                best_iou = 0.5
+
+                for g in gt:
+
+                    if g["id"] in matched:
+                        continue
+
+                    iou = bbox_iou(d["bbox"], g["bbox"])
+
+                    if iou > best_iou:
+                        best_iou = iou
+                        best = g
+
+                if best is None:
+                    continue
+
+                matched.add(best["id"])
+                gt_lookup[d["id"]] = best["category_id"]
+
+        # ----------------------------------------------------
+        # Build samples
+        # ----------------------------------------------------
+        samples = []
+
+        for ann in self.cocoDt.dataset["annotations"]:
+
+            if ann["id"] not in gt_lookup:
+                continue
+
+            if "path_ref" not in ann or "path_feats" not in ann:
+                continue
+
+            samples.append(
+                {
+                    "score": float(ann["score"]),
+                    "gt": gt_lookup[ann["id"]],
+                    "pred": ann["category_id"],
+                    "roi": ann["path_feats"],
+                    "ref": ann["path_ref"],
+                    "track": ann.get("track_id"),
+                    "image": ann["image_id"],
+                }
+            )
+
+        if len(samples) == 0:
+            print("No samples available for classification report.")
+            return
+
+
+        # ----------------------------------------------------
+        # Reference image statistics
+        # ----------------------------------------------------
+        ref_stats = defaultdict(
+            lambda: {
+                "correct": 0,
+                "wrong": 0,
+                "scores": [],
+                "errors": [],
+            }
+        )
+
+        for s in samples:
+
+            stat = ref_stats[s["ref"]]
+
+            stat["scores"].append(s["score"])
+
+            if s["gt"] == s["pred"]:
+                stat["correct"] += 1
+            else:
+                stat["wrong"] += 1
+                stat["errors"].append(s)
+
+
+        reference_quality = []
+
+        for ref, stat in ref_stats.items():
+
+            total = stat["correct"] + stat["wrong"]
+
+            reference_quality.append(
+                {
+                    "ref": ref,
+                    "used": total,
+                    "correct": stat["correct"],
+                    "wrong": stat["wrong"],
+                    "accuracy": stat["correct"] / max(total, 1),
+                    "mean_score": sum(stat["scores"]) / len(stat["scores"]),
+                }
+            )
+
+
+        # Worst references first
+        reference_quality = sorted(
+            reference_quality,
+            key=lambda x: (
+                x["accuracy"],
+                -x["used"]
+            )
+        )
+
+
+        self._write_reference_html(
+            os.path.join(save_dir, "reference_quality.html"),
+            reference_quality[:n],
+        )
+
+
+        # ----------------------------------------------------
+        # Best / worst individual samples
+        # ----------------------------------------------------
+        gallery_samples = samples
+
+        if unique_reference:
+
+            unique = {}
+
+            for s in gallery_samples:
+
+                ref = s["ref"]
+
+                if ref not in unique or s["score"] > unique[ref]["score"]:
+                    unique[ref] = s
+
+            gallery_samples = list(unique.values())
+
+
+        best_samples = sorted(
+            gallery_samples,
+            key=lambda x: -x["score"]
+        )[:n]
+
+
+        worst_samples = sorted(
+            gallery_samples,
+            key=lambda x: x["score"]
+        )[:n]
+
+
+        self._write_html(
+            os.path.join(save_dir, "best.html"),
+            best_samples,
+            title="Best classifications",
+        )
+
+        self._write_html(
+            os.path.join(save_dir, "worst.html"),
+            worst_samples,
+            title="Worst classifications",
+        )
+
+    def _write_reference_html(self, filename, references):
+
+        html = [
+            "<html>",
+            "<body>",
+            "<h1>Reference image quality</h1>",
+            "<table border='1' cellspacing='0' cellpadding='5'>",
+            """
+            <tr>
+            <th>Reference</th>
+            <th>Used</th>
+            <th>Correct</th>
+            <th>Wrong</th>
+            <th>Accuracy</th>
+            <th>Mean score</th>
+            </tr>
+            """
+        ]
+
+        for r in references:
+
+            html.append(
+            f"""
+            <tr>
+            <td>
+            <a href="{os.path.abspath(r['ref'])}">
+            <img src="{os.path.abspath(r['ref'])}" width="250">
+            </a>
+            </td>
+            <td>{r['used']}</td>
+            <td>{r['correct']}</td>
+            <td>{r['wrong']}</td>
+            <td>{100*r['accuracy']:.1f}%</td>
+            <td>{r['mean_score']:.3f}</td>
+            </tr>
+            """
+            )
+
+        html.extend(
+            [
+                "</table>",
+                "</body>",
+                "</html>",
+            ]
+        )
+
+        with open(filename, "w") as f:
+            f.write("\n".join(html))
 
 '''
 Helper
@@ -815,7 +1058,7 @@ def solve_id_conflicts(_detections, labels_input, labels_output, default_label="
 #####
 ## Evaluation of the detection and tracking results
 #####
-def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr='', log=None):
+def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr='', visu='', log=None):
     """
     Run COCO evaluation and return metrics as a flat dictionary.
 
@@ -825,6 +1068,8 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr='', log=N
         ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
         cm: bool, whether to compute the confusion matrix (default False)
         pr: str, path to save the precision-recall curve (default empty string)
+        visu: str, path to save the visualization of best/worst detections (default empty string)
+        log: logging.Logger, the logger to log the information (default None)
 
     Returns:
         dict, the evaluation results
@@ -860,10 +1105,12 @@ def coco_eval(gt_file, detection_file, ignore_classes=[], cm=False, pr='', log=N
         metrics["cm"] = my_eval.compute_cm()
     if pr:
         my_eval.plot_pr_curve(save_path=pr)
+    if visu:
+        my_eval.export_best_worst_classifications(save_dir=visu)
     return metrics
 
 
-def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False, pr='', log=None):
+def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra_info=None, ignore_classes=[], cm=False, pr='', visu='', log=None):
     '''
     Evaluate the detection performance using COCO metrics.
 
@@ -875,11 +1122,13 @@ def evaluate_detection(gt_file, detection_file, name=None, save_path=None, extra
         ignore_classes: list of int, list of category IDs to ignore in the evaluation (default empty list)
         cm: bool, whether to compute the confusion matrix (default False)
         pr: str, path to save the precision-recall curve (default empty string)
+        visu: path, path to save the visualization of best/worst detections (default empty string)
+        log: logging.Logger, the logger to log the information (default None)
 
     Returns:
         dict, the evaluation results
     '''
-    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm, pr=pr, log=log)
+    metrics = coco_eval(gt_file, detection_file, ignore_classes=ignore_classes, cm=cm, pr=pr, visu=visu, log=log)
     if save_path is not None:
         update_eval_csv(
             csv_path=save_path,
@@ -1044,6 +1293,7 @@ def merge_coco_formats(gt_files, detection_files, output_folder):
     merged_dt = []
     image_id_offset = 0
     annotation_id_offset = 0
+    track_id_offset = 0
     for gt_file, dt_file in zip(gt_files, detection_files):
         gt_data = load_json_file(gt_file)
         dt_data = load_json_file(dt_file)
@@ -1058,10 +1308,13 @@ def merge_coco_formats(gt_files, detection_files, output_folder):
         # Update image_id in dt_data
         for det in dt_data:
             det['image_id'] += image_id_offset
+            if 'track_id' in det:
+                det['track_id'] += track_id_offset
             merged_dt.append(det)
         # Update offsets for next iteration
         image_id_offset += len(gt_data['images'])
         annotation_id_offset += len(gt_data['annotations'])
+        track_id_offset += max([det['track_id'] for det in dt_data if 'track_id' in det], default=0) + 1
     # Merge categories (assuming they are the same across all files)
     merged_gt['categories'] = gt_data['categories']
     # Save merged files
@@ -1075,7 +1328,7 @@ def merge_coco_formats(gt_files, detection_files, output_folder):
 '''
 Global Evaluation Functions
 '''
-def merge_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, pr=False, log=None):
+def merge_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, output_merges, ignore_noid=False, cm=False, pr=False, visu=False, log=None):
     gt_file_per_video = {}
     pred_files_per_method_per_video = {}
     for video_output in video_outputs:
@@ -1117,6 +1370,7 @@ def merge_eval_coco(video_outputs, eval_file, gt_file_name, preds_folder_name, o
             ignore_classes=ignore_classes,
             cm=cm,
             pr=os.path.join(os.path.dirname(eval_file), 'precision_recall', '%s.png' % (method_name)) if pr else '',
+            visu=os.path.join(os.path.dirname(eval_file), 'visualizations', '%s' % (method_name)) if visu else '',
             log=log
         )
         if cm:

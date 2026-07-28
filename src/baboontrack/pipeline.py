@@ -1004,6 +1004,7 @@ def final_evaluation(args, main_output, log=None):
             ignore_noid=True,
             cm=True,
             pr=True,
+            visu=True,
             log=log
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
