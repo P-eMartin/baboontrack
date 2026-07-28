@@ -520,11 +520,11 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                     track_features = {'features': {key: f.cpu() for key, f in features.items()}, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
                     os.makedirs(os.path.dirname(track_features_path), exist_ok=True)
                     torch.save(track_features, track_features_path)
-                scores, paths_ref, path_feats = my_classifier.get_class_scores(features)
+                scores, paths_ref, paths_crop = my_classifier.get_class_scores(features)
                 track_class_dict[track_id] = {
                     'scores': scores,
                     'paths_ref': paths_ref,
-                    'path_feats': path_feats,
+                    'paths_crop': paths_crop,
                     'idxs': idxs,
                     'extra_bboxes': extra_bboxs
                 }
@@ -569,8 +569,8 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                 if 'paths_ref' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['paths_ref']:
                     det['path_ref'] = track_class_dict[track_id]['paths_ref'][assigned_class]
                 # Save the path to the feature file if available
-                if 'path_feats' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['path_feats']:
-                    det['path_feats'] = track_class_dict[track_id]['path_feats'][assigned_class]
+                if 'paths_crop' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['paths_crop']:
+                    det['path_crop'] = track_class_dict[track_id]['paths_crop'][assigned_class]
             
     track_ids = list(set(track_ids))
     n_tracks = len(track_ids)

@@ -163,6 +163,15 @@ def progress_bar(count, total, title, completed=0, log=None):
 '''
 Filesystem functions
 '''
+def get_first_folder(path):
+    path = os.path.normpath(path)
+    parts = path.split(os.sep)
+
+    if parts[0] == '':  # absolute path, e.g. /shared/folder
+        return os.sep + parts[1]
+    else:               # relative path, e.g. shared/folder
+        return parts[0]
+    
 def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fields_after=None, without_headers=False):
     '''
     Save a dictionary as a csv file.

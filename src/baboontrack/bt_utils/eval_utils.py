@@ -1,6 +1,9 @@
+import pdb
+
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
+from pathlib import Path
 import json
 import time
 import sys
@@ -15,7 +18,7 @@ import csv
 import os
 import copy
 import re
-from .io_utils import print_and_log, get_value_with_precision, save_dict_as_csv, zip_folder
+from .io_utils import print_and_log, get_value_with_precision, save_dict_as_csv, zip_folder, get_first_folder
 from .json_utils import load_json_file, save_json_file
 from collections import defaultdict
 import zipfile
@@ -332,45 +335,28 @@ class myCOCOeval(COCOeval):
         unique_reference : bool
             If True, keep only one sample per reference image for best/worst.
         """
-
         os.makedirs(save_dir, exist_ok=True)
-
+        symlink_created = False
         # ----------------------------------------------------
         # Recover GT labels from IoU matching
         # ----------------------------------------------------
         gt_lookup = {}
-
         for img_id in self.params.imgIds:
-
-            gt = self.cocoGt.loadAnns(
-                self.cocoGt.getAnnIds(imgIds=[img_id])
-            )
-
-            dt = self.cocoDt.loadAnns(
-                self.cocoDt.getAnnIds(imgIds=[img_id])
-            )
-
+            gt = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=[img_id]))
+            dt = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=[img_id]))
             matched = set()
-
             for d in sorted(dt, key=lambda x: -x["score"]):
-
                 best = None
                 best_iou = 0.5
-
                 for g in gt:
-
                     if g["id"] in matched:
                         continue
-
                     iou = bbox_iou(d["bbox"], g["bbox"])
-
                     if iou > best_iou:
                         best_iou = iou
                         best = g
-
                 if best is None:
                     continue
-
                 matched.add(best["id"])
                 gt_lookup[d["id"]] = best["category_id"]
 
@@ -378,31 +364,46 @@ class myCOCOeval(COCOeval):
         # Build samples
         # ----------------------------------------------------
         samples = []
-
         for ann in self.cocoDt.dataset["annotations"]:
-
             if ann["id"] not in gt_lookup:
                 continue
-
-            if "path_ref" not in ann or "path_feats" not in ann:
+            # Check if the annotation has the required attributes
+            if "path_ref" not in ann['attributes'] or "path_crop" not in ann['attributes']:
                 continue
-
+            # Check if the attributes are not None
+            ref_path = ann['attributes']["path_ref"]
+            crop_path = ann['attributes']["path_crop"]
+            if ref_path is None or crop_path is None:
+                continue
+            if not symlink_created:
+                # Remove existing symlinks if they exist
+                ref_symlink = os.path.join(save_dir, "ref")
+                crop_symlink = os.path.join(save_dir, "crop")
+                if os.path.islink(ref_symlink):
+                    os.remove(ref_symlink)
+                if os.path.islink(crop_symlink):
+                    os.remove(crop_symlink)
+                # Wait for a moment to ensure the filesystem has updated
+                time.sleep(0.1)
+                # Create symlinks to ref and crop root folders in the save_dir. Works only if the ref and crop first folders are the same for all samples
+                os.symlink(os.path.relpath(get_first_folder(ref_path), save_dir), ref_symlink)
+                os.symlink(os.path.relpath(get_first_folder(crop_path), save_dir), crop_symlink)
+                symlink_created = True
+            
             samples.append(
                 {
                     "score": float(ann["score"]),
                     "gt": gt_lookup[ann["id"]],
                     "pred": ann["category_id"],
-                    "roi": ann["path_feats"],
-                    "ref": ann["path_ref"],
-                    "track": ann.get("track_id"),
+                    "roi": os.path.join('crop', os.path.relpath(crop_path, get_first_folder(crop_path)).lstrip(os.sep)),
+                    "ref": os.path.join('ref', os.path.relpath(ref_path, get_first_folder(ref_path)).lstrip(os.sep)),
+                    "track": ann['attributes'].get("track_id"),
                     "image": ann["image_id"],
                 }
             )
-
         if len(samples) == 0:
             print("No samples available for classification report.")
             return
-
 
         # ----------------------------------------------------
         # Reference image statistics
@@ -413,40 +414,73 @@ class myCOCOeval(COCOeval):
                 "wrong": 0,
                 "scores": [],
                 "errors": [],
+                "tracks": {},
             }
         )
-
         for s in samples:
-
             stat = ref_stats[s["ref"]]
-
             stat["scores"].append(s["score"])
-
             if s["gt"] == s["pred"]:
                 stat["correct"] += 1
             else:
                 stat["wrong"] += 1
                 stat["errors"].append(s)
-
-
+            # Track-level storage
+            track_id = s.get("track")
+            if track_id is not None:
+                if track_id not in stat["tracks"]:
+                    stat["tracks"][track_id] = {
+                        "correct": 0,
+                        "wrong": 0,
+                        "scores": [],
+                        "samples": [],
+                    }
+                track = stat["tracks"][track_id]
+                track["scores"].append(s["score"])
+                track["samples"].append(s)
+                if s["gt"] == s["pred"]:
+                    track["correct"] += 1
+                else:
+                    track["wrong"] += 1
         reference_quality = []
-
         for ref, stat in ref_stats.items():
-
             total = stat["correct"] + stat["wrong"]
-
+            track_results = []
+            for track_id, track in stat["tracks"].items():
+                n = track["correct"] + track["wrong"]
+                track_results.append(
+                    {
+                        "track_id": track_id,
+                        "accuracy": track["correct"] / max(n, 1),
+                        "correct": track["correct"],
+                        "wrong": track["wrong"],
+                        "mean_score": np.mean(track["scores"]),
+                    }
+                )
+            correct_tracks = sum(
+                t["accuracy"] == 1.0 for t in track_results
+            )
+            wrong_tracks = sum(
+                t["accuracy"] < 1.0 for t in track_results
+            )
             reference_quality.append(
                 {
                     "ref": ref,
                     "used": total,
+                    # detection-level
                     "correct": stat["correct"],
                     "wrong": stat["wrong"],
                     "accuracy": stat["correct"] / max(total, 1),
+                    # track-level
+                    "tracks": len(track_results),
+                    "correct_tracks": correct_tracks,
+                    "wrong_tracks": wrong_tracks,
+                    "track_accuracy": (
+                        correct_tracks / max(len(track_results), 1)
+                    ),
                     "mean_score": sum(stat["scores"]) / len(stat["scores"]),
                 }
             )
-
-
         # Worst references first
         reference_quality = sorted(
             reference_quality,
@@ -455,59 +489,91 @@ class myCOCOeval(COCOeval):
                 -x["used"]
             )
         )
-
-
         self._write_reference_html(
             os.path.join(save_dir, "reference_quality.html"),
             reference_quality[:n],
         )
 
-
         # ----------------------------------------------------
         # Best / worst individual samples
         # ----------------------------------------------------
         gallery_samples = samples
-
         if unique_reference:
-
             unique = {}
-
             for s in gallery_samples:
-
                 ref = s["ref"]
-
                 if ref not in unique or s["score"] > unique[ref]["score"]:
                     unique[ref] = s
-
             gallery_samples = list(unique.values())
-
-
+        # Correct high-confidence predictions
         best_samples = sorted(
-            gallery_samples,
+            [
+                s for s in gallery_samples
+                if s["gt"] == s["pred"]
+            ],
             key=lambda x: -x["score"]
         )[:n]
-
-
+        # Wrong high-confidence predictions
         worst_samples = sorted(
-            gallery_samples,
-            key=lambda x: x["score"]
+            [
+                s for s in gallery_samples
+                if s["gt"] != s["pred"]
+            ],
+            key=lambda x: -x["score"]
         )[:n]
-
-
         self._write_html(
             os.path.join(save_dir, "best.html"),
             best_samples,
             title="Best classifications",
         )
-
         self._write_html(
             os.path.join(save_dir, "worst.html"),
             worst_samples,
             title="Worst classifications",
         )
 
-    def _write_reference_html(self, filename, references):
+    def _write_html(self, filename, samples, title):
+        html = [
+            "<html>",
+            "<head>",
+            f"<title>{title}</title>",
+            "</head>",
+            "<body>",
+            f"<h1>{title}</h1>",
+            "<table border='1' cellspacing='0' cellpadding='5'>",
+            "<tr>"
+            "<th>score</th>"
+            "<th>GT</th>"
+            "<th>Prediction</th>"
+            "<th>ROI</th>"
+            "<th>Reference</th>"
+            "</tr>",
+        ]
 
+        for s in samples:
+
+            html.append(
+                f"""
+                <tr>
+                <td>{s['score']:.3f}</td>
+                <td>{s['gt']}</td>
+                <td>{s['pred']}</td>
+                <td><a href="{s['roi']}">
+                <img src="{s['roi']}" width="180">
+                </a></td>
+                <td><a href="{s['ref']}">
+                <img src="{s['ref']}" width="180">
+                </a></td>
+                </tr>
+                """
+            )
+
+        html.extend(["</table>", "</body>", "</html>"])
+
+        with open(filename, "w") as f:
+            f.write("\n".join(html))
+
+    def _write_reference_html(self, filename, references):
         html = [
             "<html>",
             "<body>",
@@ -516,10 +582,17 @@ class myCOCOeval(COCOeval):
             """
             <tr>
             <th>Reference</th>
-            <th>Used</th>
-            <th>Correct</th>
-            <th>Wrong</th>
-            <th>Accuracy</th>
+
+            <th>Frames</th>
+            <th>Correct frames</th>
+            <th>Wrong frames</th>
+            <th>Frame accuracy</th>
+
+            <th>Tracks</th>
+            <th>Correct tracks</th>
+            <th>Wrong tracks</th>
+            <th>Track accuracy</th>
+
             <th>Mean score</th>
             </tr>
             """
@@ -530,16 +603,27 @@ class myCOCOeval(COCOeval):
             html.append(
             f"""
             <tr>
+
             <td>
-            <a href="{os.path.abspath(r['ref'])}">
-            <img src="{os.path.abspath(r['ref'])}" width="250">
+            <a href="{r['ref']}">
+            <img src="{r['ref']}" width="250">
             </a>
             </td>
+
             <td>{r['used']}</td>
             <td>{r['correct']}</td>
             <td>{r['wrong']}</td>
             <td>{100*r['accuracy']:.1f}%</td>
+
+
+            <td>{r['tracks']}</td>
+            <td>{r['correct_tracks']}</td>
+            <td>{r['wrong_tracks']}</td>
+            <td>{100*r['track_accuracy']:.1f}%</td>
+
+
             <td>{r['mean_score']:.3f}</td>
+
             </tr>
             """
             )
@@ -688,6 +772,8 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         'name': 'NoID',
                         'track_id': int(det['track_id'] + 1),
                         'visibility': det.get('visibility', 1),
+                        'path_ref': det.get('path_ref', None),
+                        'path_crop': det.get('path_crop', None),
                     }
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
@@ -710,6 +796,8 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                     'name': 'NoID',
                     'track_id': det.get('track_id', det.get('attributes', {}).get('track_id')),
                     'visibility': det['visibility'] if 'visibility' in det else 1,
+                    'path_ref': det.get('path_ref', None),
+                    'path_crop': det.get('path_crop', None),
                 }
             })
     os.makedirs(output_path, exist_ok=True)
@@ -1308,13 +1396,13 @@ def merge_coco_formats(gt_files, detection_files, output_folder):
         # Update image_id in dt_data
         for det in dt_data:
             det['image_id'] += image_id_offset
-            if 'track_id' in det:
-                det['track_id'] += track_id_offset
+            if 'track_id' in det['attributes']:
+                det['attributes']['track_id'] += track_id_offset
             merged_dt.append(det)
         # Update offsets for next iteration
         image_id_offset += len(gt_data['images'])
         annotation_id_offset += len(gt_data['annotations'])
-        track_id_offset += max([det['track_id'] for det in dt_data if 'track_id' in det], default=0) + 1
+        track_id_offset += max([det['attributes'].get('track_id', 0) for det in dt_data if 'track_id' in det['attributes']], default=0) + 1
     # Merge categories (assuming they are the same across all files)
     merged_gt['categories'] = gt_data['categories']
     # Save merged files

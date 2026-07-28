@@ -450,7 +450,7 @@ class MyClassifier:
         '''
         scores = {}
         paths_ref = {}
-        path_feats = {}
+        paths_crop = {}
         if self.feat_avg and len(track_feats) > 0:
             avg_track_feat = torch.stack(track_feats).mean(dim=0)
             avg_track_feat /= avg_track_feat.norm()
@@ -458,24 +458,24 @@ class MyClassifier:
             if ref_feats is None:
                 scores[identity] = -1
                 paths_ref[identity] = None
-                path_feats[identity] = None
+                paths_crop[identity] = None
                 continue
             if self.feat_avg and len(track_feats) > 0:
                 scores[identity] = cosine_similarity(avg_track_feat, ref_feats['averaged_feature'])
                 paths_ref[identity] = 'averaged_feature'
-                path_feats[identity] = None
+                paths_crop[identity] = None
             else:
                 best_score = -1
-                best_path_feat = None
+                best_path_crop = None
                 best_path_ref = None
-                for path_feat, track_feat in track_feats.items():
+                for path_crop, track_feat in track_feats.items():
                     if self.avg_score:
                         best_score = -1
                     for path_ref_feat, ref_feat in ref_feats.items():
                         score = cosine_similarity(track_feat, ref_feat)
                         if score > best_score:
                             best_score = score
-                            best_path_feat = path_feat
+                            best_path_crop = path_crop
                             best_path_ref = path_ref_feat
                     if self.avg_score:
                         if identity not in scores:
@@ -483,5 +483,5 @@ class MyClassifier:
                         scores[identity].append(best_score)
                 scores[identity] = np.mean(scores[identity]) if self.avg_score and identity in scores else best_score
                 paths_ref[identity] = best_path_ref if not self.avg_score else None
-                path_feats[identity] = best_path_feat if not self.avg_score else None
-        return scores, paths_ref, path_feats
+                paths_crop[identity] = best_path_crop if not self.avg_score else None
+        return scores, paths_ref, paths_crop
