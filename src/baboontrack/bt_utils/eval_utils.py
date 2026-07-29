@@ -575,6 +575,11 @@ class myCOCOeval(COCOeval):
         worst_samples_score_gt = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["gt_score"])[:n]
         worst_samples_margin = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["margin"])[:n]
         self._write_html_correct(
+            os.path.join(save_dir, "all.html"),
+            best_samples_score,
+            title="All classifications",
+        )
+        self._write_html_correct(
             os.path.join(save_dir, "best_score.html"),
             best_samples_score,
             title="Best classifications wrt score",
@@ -603,6 +608,30 @@ class myCOCOeval(COCOeval):
     def _write_html(self, filename, samples, title):
         html = [
             "<html>",
+            """
+            <style>
+            table {
+                border-collapse: collapse;
+            }
+            th, td {
+                text-align: center;
+                vertical-align: middle;
+                padding: 6px;
+            }
+            th {
+                background-color: #f0f0f0;
+            }
+            img {
+                border-radius: 4px;
+            }
+            .correct {
+                background-color: #eaf8ea;
+            }
+            .wrong {
+                background-color: #fdeaea;
+            }
+            </style>
+            """,
             "<head>",
             f"<title>{title}</title>",
             "</head>",
@@ -634,10 +663,10 @@ class myCOCOeval(COCOeval):
         ]
 
         for s in samples:
-
+            row_class = "correct" if s["gt"] == s["pred"] else "wrong"
             html.append(
                 f"""
-                <tr>
+                <tr class="{row_class}">
                 <td>{s['margin']:.3f}</td>
 
                 <td>{s['gt']}:{s['gt_name']}</td>
