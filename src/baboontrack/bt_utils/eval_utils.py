@@ -153,7 +153,7 @@ class myCOCOeval(COCOeval):
                     if g['category_id'] in self.ignore_classes:
                         g['ignore'] = 1
 
-    def compute_cm(self, iouThr=0.5):
+    def compute_cm(self, iouThr=0.5, remove_unused_classes=True):
         """
         Compute a confusion matrix using IoU matching only (ignoring categories).
         Rows = ground truth categories + FP row (last), columns = predicted categories + FN column (last).
@@ -162,6 +162,7 @@ class myCOCOeval(COCOeval):
 
         Args:
             iouThr (float): IoU threshold for matching. Default: 0.5.
+            remove_unused_classes (bool): If True, remove classes that are not present in the ground truth or predictions. Default: True.
 
         Returns:
             cm (np.ndarray): Confusion matrix of shape (num_categories + 1, num_categories + 1).
@@ -223,6 +224,19 @@ class myCOCOeval(COCOeval):
                 gt_idx = cat_to_idx[g["category_id"]]
                 cm[gt_idx, -1] += 1
         labels = cat_ids + ["FP/FN"]
+        if remove_unused_classes:
+            # Ignore the FP row and FN column
+            row_sum = cm[:-1, :].sum(axis=1)   # GT occurrences
+            col_sum = cm[:, :-1].sum(axis=0)   # Prediction occurrences
+
+            keep = (row_sum + col_sum) > 0
+
+            cm = np.block([
+                [cm[:-1, :-1][keep][:, keep], cm[:-1, -1][keep, None]],
+                [cm[-1, :-1][None, keep], cm[-1:, -1:]]
+            ])
+
+            labels = [l for l, k in zip(cat_ids, keep) if k] + ["FP/FN"]
         return cm, labels
     
     def plot_pr_curve(self, cat_id=None, iouThr=0.5, area="all", maxDet=None, save_path=None):
