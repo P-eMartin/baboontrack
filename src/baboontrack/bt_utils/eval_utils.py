@@ -351,6 +351,14 @@ class myCOCOeval(COCOeval):
         """
         os.makedirs(save_dir, exist_ok=True)
         symlink_created = False
+        id_to_name = {
+            cid: cat["name"].lower()
+            for cid, cat in self.cocoGt.cats.items()
+        }
+        name_to_id = {
+            cat["name"].lower(): cid
+            for cid, cat in self.cocoGt.cats.items()
+        }
         # ----------------------------------------------------
         # Recover GT labels from IoU matching
         # ----------------------------------------------------
@@ -384,9 +392,23 @@ class myCOCOeval(COCOeval):
             # Check if the annotation has the required attributes
             if "path_ref" not in ann['attributes'] or "path_crop" not in ann['attributes']:
                 continue
+
+            gt_id = gt_lookup[ann["id"]]
+            pred_id = ann["category_id"]
+            gt_name = id_to_name[gt_id]
+            pred_name = id_to_name[pred_id]
+            pred_score = float(ann["score"])
+            class_scores = ann["attributes"].get("class_scores", {})
+            # Lowercase the class names in class_scores for consistency and sort them by score in descending order
+            class_scores = {name.lower(): (_score, _crop_path, _ref_path) for name, (_score, _crop_path, _ref_path) in class_scores.items()}
+            # Get the highest score
+            highest_score = max((score for score, _, _ in class_scores.values()), default=0.0)
+
             # Check if the attributes are not None
             ref_path = ann['attributes']["path_ref"]
             crop_path = ann['attributes']["path_crop"]
+
+            # ref and crop paths processing
             if ref_path is None or crop_path is None:
                 continue
             if not symlink_created:
@@ -403,16 +425,42 @@ class myCOCOeval(COCOeval):
                 os.symlink(os.path.relpath(get_first_folder(ref_path), save_dir), ref_symlink)
                 os.symlink(os.path.relpath(get_first_folder(crop_path), save_dir), crop_symlink)
                 symlink_created = True
+
+            # Determine the GT score and paths based on the prediction
+            if gt_name == pred_name:
+                # the winning class
+                gt_score = pred_score
+                gt_crop = crop_path
+                gt_ref = ref_path
+                margin = gt_score - highest_score
+            elif gt_name in class_scores:
+                gt_score, gt_crop, gt_ref = class_scores[gt_name]
+                margin = gt_score - pred_score
+            else:
+                gt_score = 0.0
+                gt_crop = None
+                gt_ref = None
             
             samples.append(
                 {
-                    "score": float(ann["score"]),
-                    "gt": gt_lookup[ann["id"]],
-                    "pred": ann["category_id"],
-                    "roi": os.path.join('crop', os.path.relpath(crop_path, get_first_folder(crop_path)).lstrip(os.sep)),
-                    "ref": os.path.join('ref', os.path.relpath(ref_path, get_first_folder(ref_path)).lstrip(os.sep)),
+                    # GT Prediction
+                    "gt": gt_id,
+                    "gt_name": gt_name,
+                    "gt_score": gt_score,
+                    "gt_roi": os.path.join('crop', os.path.relpath(gt_crop, get_first_folder(gt_crop)).lstrip(os.sep)) if gt_crop else None,
+                    "gt_ref": os.path.join('ref', os.path.relpath(gt_ref, get_first_folder(gt_ref)).lstrip(os.sep)) if gt_ref else None,
+
+                    # Best Prediction
+                    "pred": pred_id,
+                    "pred_name": pred_name,
+                    "pred_score": pred_score,
+                    "pred_roi": os.path.join('crop', os.path.relpath(crop_path, get_first_folder(crop_path)).lstrip(os.sep)),
+                    "pred_ref": os.path.join('ref', os.path.relpath(ref_path, get_first_folder(ref_path)).lstrip(os.sep)),
+
+                    # Other
                     "track": ann['attributes'].get("track_id"),
                     "image": ann["image_id"],
+                    "margin": margin,
                 }
             )
         if len(samples) == 0:
@@ -520,30 +568,36 @@ class myCOCOeval(COCOeval):
                     unique[ref] = s
             gallery_samples = list(unique.values())
         # Correct high-confidence predictions
-        best_samples = sorted(
-            [
-                s for s in gallery_samples
-                if s["gt"] == s["pred"]
-            ],
-            key=lambda x: -x["score"]
-        )[:n]
+        best_samples_score = sorted([s for s in gallery_samples if s["gt"] == s["pred"]], key=lambda x: -x["pred_score"])[:n]
+        best_samples_margin = sorted([s for s in gallery_samples if s["gt"] == s["pred"]], key=lambda x: -x["margin"])[:n]
         # Wrong high-confidence predictions
-        worst_samples = sorted(
-            [
-                s for s in gallery_samples
-                if s["gt"] != s["pred"]
-            ],
-            key=lambda x: -x["score"]
-        )[:n]
-        self._write_html(
-            os.path.join(save_dir, "best.html"),
-            best_samples,
-            title="Best classifications",
+        worst_samples_score_pred = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: -x["pred_score"])[:n]
+        worst_samples_score_gt = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["gt_score"])[:n]
+        worst_samples_margin = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["margin"])[:n]
+        self._write_html_correct(
+            os.path.join(save_dir, "best_score.html"),
+            best_samples_score,
+            title="Best classifications wrt score",
+        )
+        self._write_html_correct(
+            os.path.join(save_dir, "best_margin.html"),
+            best_samples_margin,
+            title="Best classifications wrt margin",
         )
         self._write_html(
-            os.path.join(save_dir, "worst.html"),
-            worst_samples,
-            title="Worst classifications",
+            os.path.join(save_dir, "worst_pred.html"),
+            worst_samples_score_pred,
+            title="Worst classifications wrt prediction score",
+        )
+        self._write_html(
+            os.path.join(save_dir, "worst_gt.html"),
+            worst_samples_score_gt,
+            title="Worst classifications wrt GT score",
+        )
+        self._write_html(
+            os.path.join(save_dir, "worst_margin.html"),
+            worst_samples_margin,
+            title="Worst classifications wrt margin",
         )
 
     def _write_html(self, filename, samples, title):
@@ -556,11 +610,15 @@ class myCOCOeval(COCOeval):
             f"<h1>{title}</h1>",
             "<table border='1' cellspacing='0' cellpadding='5'>",
             "<tr>"
-            "<th>score</th>"
+            "<th>margin</th>"
             "<th>GT</th>"
+            "<th>GT score</th>"
+            "<th>ROI GT</th>"
+            "<th>Ref GT</th>"
             "<th>Prediction</th>"
-            "<th>ROI</th>"
-            "<th>Reference</th>"
+            "<th>Prediction score</th>"
+            "<th>ROI Prediction</th>"
+            "<th>Ref Prediction</th>"
             "</tr>",
         ]
 
@@ -569,14 +627,67 @@ class myCOCOeval(COCOeval):
             html.append(
                 f"""
                 <tr>
-                <td>{s['score']:.3f}</td>
-                <td>{s['gt']}</td>
-                <td>{s['pred']}</td>
-                <td><a href="{s['roi']}">
-                <img src="{s['roi']}" width="180">
+                <td>{s['margin']:.3f}</td>
+                <td>{s['gt']}:{s['gt_name']}</td>
+                <td>{s['gt_score']:.3f}</td>
+                <td><a href="{s['gt_roi']}">
+                <img src="{s['gt_roi']}" width="180">
                 </a></td>
-                <td><a href="{s['ref']}">
-                <img src="{s['ref']}" width="180">
+                <td><a href="{s['gt_ref']}">
+                <img src="{s['gt_ref']}" width="180">
+                </a></td>
+                <td>{s['pred']}:{s['pred_name']}</td>
+                <td>{s['pred_score']:.3f}</td>
+                <td><a href="{s['pred_roi']}">
+                <img src="{s['pred_roi']}" width="180">
+                </a></td>
+                <td><a href="{s['pred_ref']}">
+                <img src="{s['pred_ref']}" width="180">
+                </a></td>
+                </tr>
+                """
+            )
+
+        html.extend(["</table>", "</body>", "</html>"])
+
+        with open(filename, "w") as f:
+            f.write("\n".join(html))
+
+    def _write_html_correct(self, filename, samples, title):
+        html = [
+            "<html>",
+            "<head>",
+            f"<title>{title}</title>",
+            "</head>",
+            "<body>",
+            f"<h1>{title}</h1>",
+            "<table border='1' cellspacing='0' cellpadding='5'>",
+            "<tr>"
+            "<th>margin</th>"
+            "<th>GT</th>"
+            "<th>GT score</th>"
+            "<th>ROI GT</th>"
+            "<th>Ref GT</th>"
+            "<th>Prediction</th>"
+            "<th>Prediction score</th>"
+            "<th>ROI Prediction</th>"
+            "<th>Ref Prediction</th>"
+            "</tr>",
+        ]
+
+        for s in samples:
+
+            html.append(
+                f"""
+                <tr>
+                <td>{s['margin']:.3f}</td>
+                <td>{s['gt']}:{s['gt_name']}</td>
+                <td>{s['gt_score']:.3f}</td>
+                <td><a href="{s['gt_roi']}">
+                <img src="{s['gt_roi']}" width="180">
+                </a></td>
+                <td><a href="{s['gt_ref']}">
+                <img src="{s['gt_ref']}" width="180">
                 </a></td>
                 </tr>
                 """
@@ -788,6 +899,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         'visibility': det.get('visibility', 1),
                         'path_ref': det.get('path_ref', None),
                         'path_crop': det.get('path_crop', None),
+                        'class_scores': det.get('class_scores', None)
                     }
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
@@ -812,6 +924,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                     'visibility': det['visibility'] if 'visibility' in det else 1,
                     'path_ref': det.get('path_ref', None),
                     'path_crop': det.get('path_crop', None),
+                    'class_scores': det.get('class_scores', None)
                 }
             })
     os.makedirs(output_path, exist_ok=True)
