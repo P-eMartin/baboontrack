@@ -574,9 +574,9 @@ class myCOCOeval(COCOeval):
         worst_samples_score_pred = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: -x["pred_score"])[:n]
         worst_samples_score_gt = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["gt_score"])[:n]
         worst_samples_margin = sorted([s for s in gallery_samples if s["gt"] != s["pred"]], key=lambda x: x["margin"])[:n]
-        self._write_html_correct(
+        self._write_html(
             os.path.join(save_dir, "all.html"),
-            best_samples_score,
+            gallery_samples,
             title="All classifications",
         )
         self._write_html_correct(
