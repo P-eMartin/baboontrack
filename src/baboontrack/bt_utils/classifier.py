@@ -431,7 +431,7 @@ class MyClassifier:
                     ref_path = path
                     if bbox is not None:
                         # For visulization purposes, we save the img_cropped with an overlayed bbox of the extra_bbox if it exists in a dedicated folder
-                        ref_path = os.path.join('.tmp', 'ref_crops', '%s_%s_%g_%g_%g' % (self.name_database, self.detector_type, self.det_thr, self.nms_thr, self.roi_det), '%s_%s.jpg' % (class_id, os.path.basename(path)))
+                        ref_path = os.path.join('.tmp', 'ref_crops', '%s_%s_%g_%g_%g' % (self.name_database, self.detector_type, self.det_thr, self.nms_thr, self.roi_det), class_id, os.path.basename(path))
                         if not os.path.exists(ref_path):
                             os.makedirs(os.path.dirname(ref_path), exist_ok=True)
                             img = cv2.imread(path)
@@ -439,8 +439,8 @@ class MyClassifier:
                                 print_and_log("Empty image, cannot save cropped image.", log=self.log)
                                 ref_path = path
                             else:
-                                x1, y1, x2, y2 = bbox
-                                cv2.rectangle(img, (max(0, int(x1)), max(0, int(y1))), (min(int(x2), img.shape[1]), min(int(y2), img.shape[0])), (0, 255, 0), 2)
+                                x, y, w, h = bbox
+                                cv2.rectangle(img, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img.shape[1]), min(int(y + h), img.shape[0])), (0, 255, 0), 2)
                                 cv2.imwrite(ref_path, img)
                     id_features[ref_path] = feature
             if len(id_features) == 0:
