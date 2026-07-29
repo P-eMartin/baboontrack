@@ -329,7 +329,7 @@ class myCOCOeval(COCOeval):
         plt.savefig(save_path, dpi=300)
         plt.close()
     
-    def export_best_worst_classifications(self, save_dir, n=50, unique_reference=True):
+    def export_best_worst_classifications(self, save_dir, iouThr=0.5, n=50, unique_reference=True):
         """
         Export HTML reports of classification performance.
 
@@ -369,7 +369,7 @@ class myCOCOeval(COCOeval):
             matched = set()
             for d in sorted(dt, key=lambda x: -x["score"]):
                 best = None
-                best_iou = 0.5
+                best_iou = iouThr
                 for g in gt:
                     if g["id"] in matched:
                         continue
@@ -480,8 +480,8 @@ class myCOCOeval(COCOeval):
             }
         )
         for s in samples:
-            stat = ref_stats[s["ref"]]
-            stat["scores"].append(s["score"])
+            stat = ref_stats[s["pred_ref"]]
+            stat["scores"].append(s["pred_score"])
             if s["gt"] == s["pred"]:
                 stat["correct"] += 1
             else:
@@ -498,7 +498,7 @@ class myCOCOeval(COCOeval):
                         "samples": [],
                     }
                 track = stat["tracks"][track_id]
-                track["scores"].append(s["score"])
+                track["scores"].append(s["pred_score"])
                 track["samples"].append(s)
                 if s["gt"] == s["pred"]:
                     track["correct"] += 1
@@ -563,8 +563,8 @@ class myCOCOeval(COCOeval):
         if unique_reference:
             unique = {}
             for s in gallery_samples:
-                ref = s["ref"]
-                if ref not in unique or s["score"] > unique[ref]["score"]:
+                ref = s["pred_ref"]
+                if ref not in unique or s["pred_score"] > unique[ref]["pred_score"]:
                     unique[ref] = s
             gallery_samples = list(unique.values())
         # Correct high-confidence predictions
@@ -609,17 +609,28 @@ class myCOCOeval(COCOeval):
             "<body>",
             f"<h1>{title}</h1>",
             "<table border='1' cellspacing='0' cellpadding='5'>",
-            "<tr>"
-            "<th>margin</th>"
-            "<th>GT</th>"
-            "<th>GT score</th>"
-            "<th>ROI GT</th>"
-            "<th>Ref GT</th>"
-            "<th>Prediction</th>"
-            "<th>Prediction score</th>"
-            "<th>ROI Prediction</th>"
-            "<th>Ref Prediction</th>"
-            "</tr>",
+            # First header row
+            """
+            <tr>
+                <th rowspan="2">Margin</th>
+                <th colspan="4">Ground Truth</th>
+                <th colspan="4">Prediction</th>
+            </tr>
+            """,
+            # Second header row
+            """
+            <tr>
+                <th>Identity</th>
+                <th>Score</th>
+                <th>ROI</th>
+                <th>Reference</th>
+
+                <th>Identity</th>
+                <th>Score</th>
+                <th>ROI</th>
+                <th>Reference</th>
+            </tr>
+            """,
         ]
 
         for s in samples:
@@ -628,22 +639,17 @@ class myCOCOeval(COCOeval):
                 f"""
                 <tr>
                 <td>{s['margin']:.3f}</td>
+
                 <td>{s['gt']}:{s['gt_name']}</td>
                 <td>{s['gt_score']:.3f}</td>
-                <td><a href="{s['gt_roi']}">
-                <img src="{s['gt_roi']}" width="180">
-                </a></td>
-                <td><a href="{s['gt_ref']}">
-                <img src="{s['gt_ref']}" width="180">
-                </a></td>
+                <td><a href="{s['gt_roi']}"><img src="{s['gt_roi']}" width="180"></a></td>
+                <td><a href="{s['gt_ref']}"><img src="{s['gt_ref']}" width="180"></a></td>
+
                 <td>{s['pred']}:{s['pred_name']}</td>
                 <td>{s['pred_score']:.3f}</td>
-                <td><a href="{s['pred_roi']}">
-                <img src="{s['pred_roi']}" width="180">
-                </a></td>
-                <td><a href="{s['pred_ref']}">
-                <img src="{s['pred_ref']}" width="180">
-                </a></td>
+                <td><a href="{s['pred_roi']}"><img src="{s['pred_roi']}" width="180"></a></td>
+                <td><a href="{s['pred_ref']}"><img src="{s['pred_ref']}" width="180"></a></td>
+
                 </tr>
                 """
             )
@@ -664,14 +670,10 @@ class myCOCOeval(COCOeval):
             "<table border='1' cellspacing='0' cellpadding='5'>",
             "<tr>"
             "<th>margin</th>"
-            "<th>GT</th>"
-            "<th>GT score</th>"
-            "<th>ROI GT</th>"
-            "<th>Ref GT</th>"
-            "<th>Prediction</th>"
-            "<th>Prediction score</th>"
-            "<th>ROI Prediction</th>"
-            "<th>Ref Prediction</th>"
+            "<th>Identity</th>"
+            "<th>Score</th>"
+            "<th>ROI</th>"
+            "<th>Reference</th>"
             "</tr>",
         ]
 
