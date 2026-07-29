@@ -571,6 +571,16 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                 # Save the path to the feature file if available
                 if 'paths_crop' in track_class_dict[track_id] and assigned_class in track_class_dict[track_id]['paths_crop']:
                     det['path_crop'] = track_class_dict[track_id]['paths_crop'][assigned_class]
+                    det['paths_crop'] = track_class_dict[track_id]['paths_crop'][assigned_class]
+                # Save other scores and paths for other classes if available
+                if 'scores' in track_class_dict[track_id]:
+                    det['class_scores'] = {
+                        cls_name: (
+                            float(score),
+                            track_class_dict[track_id]['paths_crop'][cls_name],
+                            track_class_dict[track_id]['paths_ref'][cls_name]
+                        )
+                        for cls_name, score in track_class_dict[track_id]['scores'].items() if assigned_class != cls_name}
             
     track_ids = list(set(track_ids))
     n_tracks = len(track_ids)
