@@ -169,6 +169,12 @@ def get_args():
         help=helptext_sim_th
     )
     parser.add_argument(
+        '-j', '--joint_factor',
+        default=0.0,
+        type=float,
+        help=helptext_joint_factor
+    )
+    parser.add_argument(
         '-e', '--eval_detection',
         action='store_true',
         help=helptext_eval_detection
@@ -255,4 +261,7 @@ def infer_args_name(args):
     # Check if tracker type is compatible with detection model
     if 'sam3' in args.tracker_type:
         assert 'sam3' in args.det_model, 'Tracker type %s is only compatible with sam3 detection model.' % (args.tracker_type)
+
+    # Assert that joint_factor is between 0 and 1
+    assert 0 <= args.joint_factor < 1, 'Joint factor must be between 0 and 1.'
     return 1

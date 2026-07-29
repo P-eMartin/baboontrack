@@ -459,6 +459,7 @@ class myCOCOeval(COCOeval):
 
                     # Other
                     "track": ann['attributes'].get("track_id"),
+                    'extra_bbox': ann['attributes'].get("extra_bbox"),
                     "image": ann["image_id"],
                     "margin": margin,
                 }
@@ -935,7 +936,8 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                         'visibility': det.get('visibility', 1),
                         'path_ref': det.get('path_ref', None),
                         'path_crop': det.get('path_crop', None),
-                        'class_scores': det.get('class_scores', None)
+                        'class_scores': det.get('class_scores', None),
+                        'extra_bbox': det.get('extra_bbox', None)
                     }
                 })
         else: # Case when detection_dict is a list of dictionaries (already in COCO format)
@@ -960,7 +962,8 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
                     'visibility': det['visibility'] if 'visibility' in det else 1,
                     'path_ref': det.get('path_ref', None),
                     'path_crop': det.get('path_crop', None),
-                    'class_scores': det.get('class_scores', None)
+                    'class_scores': det.get('class_scores', None),
+                    'extra_bbox': det.get('extra_bbox', None)
                 }
             })
     os.makedirs(output_path, exist_ok=True)

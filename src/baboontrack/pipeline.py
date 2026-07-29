@@ -390,7 +390,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
 
 def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
-             roi_det=1.0, avg_score=False, noid_str='NoID', source_roi='', log=None):
+             roi_det=1.0, avg_score=False, noid_str='NoID', source_roi='', joint_factor=0, log=None):
     '''
     Classify the tracks of the detected Baboons using a pre-trained classifier and a dictionary with extracted features from the tracks.
 
@@ -413,6 +413,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
         roi_det: float, the factor to scale the region of interest for detection (default 1.0)
         noid_str: str, the string for the "NoID" class (default 'NoID')
         source_roi: str, the source of the region of interest (default '') - allow loading faster
+        joint_factor: float, the factor to combine the features from two classifiers (default 0)
         log: logger, the logger to print the information (default None)
 
     Returns:
@@ -434,9 +435,19 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
-                                     feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
-                                     name_database=os.path.basename(class_database), log=log)
+        if joint_factor:
+            print_and_log('Joint classification is enabled. All tracks will be classified using two preset_classifiers.', log=log)
+            # Full image
+            my_classifier = MyClassifier(device=device, detector_type=None, det_thr=0, nms_thr=0, feat_avg=False, nca=True, epochs=200,
+                                         lr=0.0001, roi_det=1, avg_score=avg_score, name_database=os.path.basename(class_database), log=log)
+            # Primate face crop
+            my_classifier2 = MyClassifier(device=device, detector_type='primateface', det_thr=0.5, nms_thr=0.4, feat_avg=False, nca=True,
+                                          epochs=200, lr=0.0001, roi_det=2.5, avg_score=avg_score, name_database=os.path.basename(class_database),
+                                          log=log)
+        else:
+            my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
+                                        feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
+                                        name_database=os.path.basename(class_database), log=log)
 
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
@@ -456,6 +467,9 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
             # Build the database of features for the classifier
             print_and_log('Building the database of features for the classifier from %s' % (class_database), log=log)
             my_classifier.build_database(img_path_dict)
+            if joint_factor:
+                print_and_log('Building the database of features for the second classifier (primateface) from %s' % (class_database), log=log)
+                my_classifier2.build_database(img_path_dict)
             track_class_dict = defaultdict(list)
             start_loop = time.time()
             for idx, (track_id, track_dets) in enumerate(track_dict.items()):
@@ -468,17 +482,21 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                 track_features_path = os.path.join(
                     os.path.dirname(output_file),
                     'features',
-                    os.path.basename(output_file).replace('_avg_score', '').replace('_simth-%g' % sim_th, '').replace('.json', ''),
+                    os.path.basename(output_file).replace('_joint-%g' % joint_factor, '_joint').replace('_avg_score', '').replace('_simth-%g' % sim_th, '').replace('.json', ''),
                     'track_%d.pt' % track_id
                 )
                 if os.path.exists(track_features_path):
                     print_and_log('Loading features for track %d from %s' % (track_id, track_features_path), log=log)
                     track_features = torch.load(track_features_path, map_location=device)
                     features = track_features['features']
+                    if joint_factor:
+                        features2 = track_features['features2']
                     idxs = track_features['idxs']
                     extra_bboxs = track_features['extra_bboxes']
                 else:
                     features = {}
+                    if joint_factor:
+                        features2 = {}
                     idxs = []
                     extra_bboxs = {}
                     ## Set my_video to bgr extraction for classification
@@ -495,8 +513,14 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             if feature is None:
                                 continue
                             features[roi_file] = feature
+                            if joint_factor:
+                                feature2, extra_bbox2 = my_classifier2.extract_feature(roi_file)
+                                if feature2 is not None:
+                                    features2[roi_file] = feature2
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
+                            elif joint_factor and extra_bbox2 is not None:
+                                extra_bboxs[frame_idx] = extra_bbox2
                     else:
                         for det in track_dets:
                             frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
@@ -514,10 +538,28 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             if feature is None:
                                 continue
                             features[roi_file] = feature
+                            if joint_factor:
+                                feature2, extra_bbox2 = my_classifier2.extract_feature(img_cropped)
+                                if feature2 is not None:
+                                    features2[roi_file] = feature2
+                            _extra_bbox = None
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
+                                _extra_bbox = extra_bbox
+                            elif joint_factor and extra_bbox2 is not None:
+                                extra_bboxs[frame_idx] = extra_bbox2
+                                _extra_bbox = extra_bbox2
+                            # For visulization purposes, we save the img_cropped with an overlayed bbox of the extra_bbox if it exists in a dedicated folder
+                            if _extra_bbox is not None:
+                                roi_file = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
+                                os.makedirs(os.path.dirname(roi_file), exist_ok=True)
+                                x1, y1, x2, y2 = _extra_bbox
+                                cv2.rectangle(img_cropped, (max(0, int(x1)), max(0, int(y1))), (min(int(x2), img_cropped.shape[1]), min(int(y2), img_cropped.shape[0])), (0, 255, 0), 2)
+                                cv2.imwrite(roi_file, img_cropped)
                     # Save the features, idxs and extra bboxes for this track in a dict file
                     track_features = {'features': {key: f.cpu() for key, f in features.items()}, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
+                    if joint_factor:
+                        track_features['features2'] = {key: f.cpu() for key, f in features2.items()}
                     os.makedirs(os.path.dirname(track_features_path), exist_ok=True)
                     torch.save(track_features, track_features_path)
                 scores, paths_ref, paths_crop = my_classifier.get_class_scores(features)
@@ -528,10 +570,36 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                     'idxs': idxs,
                     'extra_bboxes': extra_bboxs
                 }
+                if joint_factor:
+                    scores2, paths_ref2, paths_crop2 = my_classifier2.get_class_scores(features2)
+                    track_class_dict[track_id]['scores2'] = scores2
+                    track_class_dict[track_id]['paths_ref2'] = paths_ref2
+                    track_class_dict[track_id]['paths_crop2'] = paths_crop2
             progress_bar(len(track_dict), len(track_dict), 'Classifying tracks done in %ds. Resolving assignments...' % (time.time() - start_loop), log=log, completed=True)
             # Save the track_class_dict for future use
             save_json_file(track_class_dict, track_class_dict_path)
         ## Step 3: Final decision on the class of each track based on the scores, a threshold and overlapping tracks.
+        if joint_factor:
+            print_and_log('Resolving class assignments with joint classification.', log=log)
+            # Combine the scores from both classifiers by averaging them
+            for track_id, track_info in track_class_dict.items():
+                scores1 = track_info.get('scores', {})
+                scores2 = track_info.get('scores2', {})
+                paths_ref1 = track_info.get('paths_ref', {})
+                paths_crop1 = track_info.get('paths_crop', {})
+                paths_ref2 = track_info.get('paths_ref2', {})
+                paths_crop2 = track_info.get('paths_crop2', {})
+                scores = {}
+                paths_ref = {}
+                paths_crop = {}
+                for cls_name in set(scores1.keys()).union(set(scores2.keys())):
+                    scores[cls_name] = (1-joint_factor)*scores1.get(cls_name, 0.0) + joint_factor*scores2.get(cls_name, 0.0)
+                    # Prefer paths from the classifier with more weight
+                    paths_ref[cls_name] = paths_ref1.get(cls_name) if joint_factor < 0.5 else paths_ref2.get(cls_name)
+                    paths_crop[cls_name] = paths_crop1.get(cls_name) if joint_factor < 0.5 else paths_crop2.get(cls_name)
+                track_class_dict[track_id]['scores'] = scores
+                track_class_dict[track_id]['paths_ref'] = paths_ref
+                track_class_dict[track_id]['paths_crop'] = paths_crop
         final_assignments = resolve_class_assignments(track_class_dict, sim_th=sim_th)
     else:
         print_and_log(f'No classification dictionary provided. Assigning {noid_str} class to all tracks.', log=log)
@@ -756,13 +824,14 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     classi_name += '_%s-thr-%g-nms-%g-roi-%g' % (args.class_det, args.class_det_thr, args.class_nms_thr, args.roi_det) if args.class_det else ''
     classi_name += '_featavg' if args.feat_avg else ''
     classi_name += '_nca_%d-%g' % (args.epochs, args.lr) if args.nca else ''
+    classi_name += '_joint-%g' % (args.joint_factor) if args.joint_factor else ''
     classi_name += '_avg_score' if args.avg_score else ''
     classi_name += '_simth-%g' % (args.sim_th)
     class_dict = classify(
         tracking_dict,
         my_video,
         os.path.join(args.output, 'class_dicts', '%s.json' % (classi_name)),
-        class_database=args.class_database,
+        class_database=os.path.normpath(args.class_database),
         image_size=image_size,
         device=args.device,
         class_det=args.class_det,
@@ -778,6 +847,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         sim_th=args.sim_th,
         noid_str=noid_str,
         source_roi=source_roi,
+        joint_factor=args.joint_factor,
         log=log
     )
     if check_stop(log=log): return 0
@@ -890,6 +960,8 @@ def main_loop(args, log=None):
         lr = [1e-4]
         # roi_factors = [1.0, 1.1, 0.9]
         roi_factors = [1.0]
+        # joint_factors = [0, 0.25, 0.5, 0.75]
+        joint_factors = [0]
         # roi_dets = [1.0, 1.1, 0.9]
         roi_dets = [1, 2.5]
         avg_scores = [False, True]
@@ -903,37 +975,39 @@ def main_loop(args, log=None):
             args.tracker_type = tracker_type
             for prompt in prompts if 'sam3' in det_model else ['']:
                 args.text_prompt = prompt
-                for class_det in class_det_types:
-                    args.class_det = class_det
-                    for feat in feat_avg:
-                        args.feat_avg = feat
-                        for roi_factor in roi_factors:
-                            args.roi_factor = roi_factor
-                            for nca_val in nca:
-                                args.nca = nca_val
-                                for epoch in epochs if nca_val else [0]:
-                                    args.epochs = epoch
-                                    for lr_val in lr if nca_val else [0]:
-                                        args.lr = lr_val
-                                        for roi_det in roi_dets if nca_val else [1.0]:
-                                            args.roi_det = roi_det
-                                            for avg_score in avg_scores:
-                                                args.avg_score = avg_score
-                                                for sim_th in sim_ths:
-                                                    args.sim_th = sim_th
-                                                    print_and_log('Running det %s%s and tracker %s%s' % (
-                                                        det_model,
-                                                        ' with prompt "%s"' % (prompt) if prompt else '',
-                                                        tracker_type,
-                                                        ' with classification%s%s%s%s' % (
-                                                            ' with %s' % (class_det) if class_det else '',
-                                                            ' with feat avg' if feat else '',
-                                                            ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
-                                                            ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                                        )
-                                                    ), log=log)
-                                                    main(args, log=log)
-                                                    args.input_video.reset_video()
+                for joint_factor in joint_factors:
+                    args.joint_factor = joint_factor
+                    for class_det in class_det_types if not joint_factor else ['']:
+                        args.class_det = class_det
+                        for feat in feat_avg if not joint_factor else [False]:
+                            args.feat_avg = feat
+                            for roi_factor in roi_factors:
+                                args.roi_factor = roi_factor
+                                for nca_val in nca if not joint_factor else [False]:
+                                    args.nca = nca_val
+                                    for epoch in epochs if nca_val else [0]:
+                                        args.epochs = epoch
+                                        for lr_val in lr if nca_val else [0]:
+                                            args.lr = lr_val
+                                            for roi_det in roi_dets if nca_val else [1.0]:
+                                                args.roi_det = roi_det
+                                                for avg_score in avg_scores:
+                                                    args.avg_score = avg_score
+                                                    for sim_th in sim_ths:
+                                                        args.sim_th = sim_th
+                                                        print_and_log('Running det %s%s and tracker %s%s' % (
+                                                            det_model,
+                                                            ' with prompt "%s"' % (prompt) if prompt else '',
+                                                            tracker_type,
+                                                            ' with classification%s%s%s%s' % (
+                                                                ' with %s' % (class_det) if class_det else '',
+                                                                ' with feat avg' if feat else '',
+                                                                ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
+                                                                ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                                            )
+                                                        ), log=log)
+                                                        main(args, log=log)
+                                                        args.input_video.reset_video()
 
 def final_evaluation(args, main_output, log=None):
     '''

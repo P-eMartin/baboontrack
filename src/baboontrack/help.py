@@ -141,6 +141,10 @@ the bounding boxes.
 helptext_roi_det = '''Region of interest (ROI) factor for increasing or decreasing the size of the bounding boxes used for detection. Default: 1.0.
 '''
 
+helptext_joint_factor = '''Factor for combining the scores from two classifiers. Default: 0
+This factor determines how much weight is given to the scores from the second classifier when combining them with the scores from the first classifier.
+'''
+
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
 '''
 
