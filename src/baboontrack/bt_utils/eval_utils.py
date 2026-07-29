@@ -579,6 +579,11 @@ class myCOCOeval(COCOeval):
             gallery_samples,
             title="All classifications",
         )
+        self._write_html(
+            os.path.join(save_dir, "all_margin_sorted.html"),
+            sorted(gallery_samples, key=lambda x: -x["margin"]),
+            title="All classifications",
+        )
         self._write_html_correct(
             os.path.join(save_dir, "best_score.html"),
             best_samples_score,
