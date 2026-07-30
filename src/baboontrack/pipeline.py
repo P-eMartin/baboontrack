@@ -1099,11 +1099,16 @@ def final_evaluation(args, main_output, log=None):
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
-def _process_video(args, input_path, main_output, main_funct, log=None):
+def _process_video(args, input_path, main_output, main_funct, log_file=None):
     args = copy.deepcopy(args)
     args.input_video = input_path
     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
+    if log_file:
+        log = setup_logger(log_file=log_file)
+    else:
+        log = None
     main_funct(args, log=log)
+    close_log(log)
 
 def run(**kwargs):
     '''
@@ -1147,7 +1152,7 @@ def run(**kwargs):
                         input_path,
                         main_output,
                         main_funct,
-                        setup_logger(log_file=log_file.replace('.log', '_%d.log' % idx))) for idx, input_path in enumerate(input_list)]
+                        log_file.replace('.log', '_%d_%s.log' % (idx, os.path.basename(input_path)))) for idx, input_path in enumerate(input_list)]
                 # propagate exceptions
                 for f in futures:
                     f.result()
