@@ -251,12 +251,17 @@ class MyClassifier:
             loss_avg = total_loss / len(dataloader)
             if loss_avg < min_loss:
                 min_loss = loss_avg
-                torch.save(self.projection.state_dict(), path_weights)
+                torch.save(self.projection.state_dict(), path_weights.replace('.pt', '_tmp.pt'))
                 best_epoch = epoch
-                print_and_log(f"Epoch {epoch}: {loss_avg:.4g} (best, saved to {path_weights})", log=self.log)
+                print_and_log(f"Epoch {epoch}: {loss_avg:.4g} (best, saved to {path_weights.replace('.pt', '_tmp.pt')})", log=self.log)
             else:
                 print_and_log(f"Epoch {epoch}: {loss_avg:.4g}", log=self.log)
             train_loss.append(loss_avg)
+        # Rename the best model to the final name
+        if os.path.exists(path_weights.replace('.pt', '_tmp.pt')):
+            os.rename(path_weights.replace('.pt', '_tmp.pt'), path_weights)
+        else:
+            print_and_log(f"Warning: No best model was saved during training. Check if the training was successful.", log=self.log)
         print_and_log(f"Finished training NCA projection layer. Best loss: {min_loss:.4g} at epoch {best_epoch}. Saved to {path_weights}", log=self.log)
         # Save nca in .tmp folder to avoid retraining if the same model is used again
         # torch.save(self.projection.state_dict(), path_weights)
