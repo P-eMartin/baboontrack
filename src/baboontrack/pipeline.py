@@ -539,14 +539,11 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             idxs.append(frame_idx)
                             roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
                             extra_bbox = extract_and_store_feature(my_classifier, None, roi_file, roi_path, track_id, frame_idx, features)
-                            # features[roi_file] = feature
                             if joint_factor:
                                 extra_bbox2 = extract_and_store_feature(my_classifier2, None, roi_file, roi_path, track_id, frame_idx, features2)
                             # Save extra bbox in det for visualization in video
-                            if extra_bbox is not None:
-                                extra_bboxs[frame_idx] = extra_bbox
-                            elif joint_factor and extra_bbox2 is not None:
-                                extra_bboxs[frame_idx] = extra_bbox2
+                            if extra_bbox is not None or (joint_factor and extra_bbox2 is not None):
+                                extra_bboxs[frame_idx] = extra_bbox if extra_bbox is not None else extra_bbox2
                     else:
                         for det in track_dets:
                             frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
@@ -564,10 +561,8 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             if joint_factor:
                                 extra_bbox2 = extract_and_store_feature(my_classifier2, img_cropped, roi_file, roi_path, track_id, frame_idx, features2)
                             # Save extra bbox in det for visualization in video
-                            if extra_bbox is not None:
-                                extra_bboxs[frame_idx] = extra_bbox
-                            elif joint_factor and extra_bbox2 is not None:
-                                extra_bboxs[frame_idx] = extra_bbox2
+                            if extra_bbox is not None or (joint_factor and extra_bbox2 is not None):
+                                extra_bboxs[frame_idx] = extra_bbox if extra_bbox is not None else extra_bbox2
                     # Save the features, idxs and extra bboxes for this track in a dict file
                     track_features = {'features': {key: f.cpu() for key, f in features.items()}, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
                     if joint_factor:
