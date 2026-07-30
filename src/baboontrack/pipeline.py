@@ -494,7 +494,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                 my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
                                             feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
                                             name_database=os.path.basename(class_database), log=log)
-            print_and_log('Building the database of features for the classifier from %s' % (class_database), log=torch.log)
+            print_and_log('Building the database of features for the classifier from %s' % (class_database), log=log)
             my_classifier.build_database(img_path_dict)
             if joint_factor:
                 print_and_log('Building the database of features for the second classifier (primateface) from %s' % (class_database), log=log)
