@@ -50,6 +50,8 @@ conda_env_list = subprocess.run(["conda", "env", "list"], capture_output=True, t
 if conda_env_name not in conda_env_list:
     print(f"Warning: Conda environment '{conda_env_name}' does not exist. You may not be able to use the SAM3-based detection and tracking, which is facultative.")
     print(f"Please create it by following the instructions in the SAM3 repository: {sam3_repo}")
+    print("Or maybe you need to add the shared conda environment directory to your conda configuration:")
+    print("conda config --append envs_dirs /shared/conda/envs")
 else:
     print(f"Conda environment '{conda_env_name}' exists. If well installed, you may use the SAM3-based detection and tracking.")
 
