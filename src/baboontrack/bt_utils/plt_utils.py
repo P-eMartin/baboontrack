@@ -12,7 +12,7 @@ def save_img_with_bbox(img, bbox, save_path):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     x, y, w, h = bbox
     cv2.rectangle(img, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img.shape[1]), min(int(y + h), img.shape[0])), (0, 255, 0), 2)
-    cv2.imwrite(save_path, save_path)
+    cv2.imwrite(save_path, img)
     return 1
 
 
