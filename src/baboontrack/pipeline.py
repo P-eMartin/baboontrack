@@ -537,25 +537,32 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             feature, extra_bbox = my_classifier.extract_feature(img_cropped)
                             if feature is None:
                                 continue
-                            features[roi_file] = feature
+                            # For visulization purposes, we save the img_cropped with an overlayed bbox of the extra_bbox if it exists in a dedicated folder
+                            if extra_bbox is not None:
+                                crop_path = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
+                                os.makedirs(os.path.dirname(roi_file), exist_ok=True)
+                                x, y, w, h = extra_bbox
+                                cv2.rectangle(img_cropped, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img_cropped.shape[1]), min(int(y + h), img_cropped.shape[0])), (0, 255, 0), 2)
+                                cv2.imwrite(roi_file, img_cropped)
+                            else:
+                                crop_path = roi_file
+                            features[crop_path] = feature
                             if joint_factor:
                                 feature2, extra_bbox2 = my_classifier2.extract_feature(img_cropped)
                                 if feature2 is not None:
-                                    features2[roi_file] = feature2
-                            _extra_bbox = None
+                                    if extra_bbox2 is not None:
+                                        crop_path2 = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
+                                        os.makedirs(os.path.dirname(roi_file), exist_ok=True)
+                                        x, y, w, h = extra_bbox
+                                        cv2.rectangle(img_cropped, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img_cropped.shape[1]), min(int(y + h), img_cropped.shape[0])), (0, 255, 0), 2)
+                                        cv2.imwrite(roi_file, img_cropped)
+                                    else:
+                                        crop_path2 = roi_file
+                                    features2[crop_path2] = feature2
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
-                                _extra_bbox = extra_bbox
                             elif joint_factor and extra_bbox2 is not None:
                                 extra_bboxs[frame_idx] = extra_bbox2
-                                _extra_bbox = extra_bbox2
-                            # For visulization purposes, we save the img_cropped with an overlayed bbox of the extra_bbox if it exists in a dedicated folder
-                            if _extra_bbox is not None:
-                                roi_file = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
-                                os.makedirs(os.path.dirname(roi_file), exist_ok=True)
-                                x, y, w, h = _extra_bbox
-                                cv2.rectangle(img_cropped, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img_cropped.shape[1]), min(int(y + h), img_cropped.shape[0])), (0, 255, 0), 2)
-                                cv2.imwrite(roi_file, img_cropped)
                     # Save the features, idxs and extra bboxes for this track in a dict file
                     track_features = {'features': {key: f.cpu() for key, f in features.items()}, 'idxs': idxs, 'extra_bboxes': extra_bboxs}
                     if joint_factor:
