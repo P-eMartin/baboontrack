@@ -23,6 +23,7 @@ from .args import check_args, infer_args_name
 from .bt_utils.io_utils import print_and_log, setup_logger, close_log, progress_bar, get_value_with_precision, find_file_with_ending
 from .bt_utils.json_utils import save_json_file, load_json_file
 from .bt_utils.img_utils import VideoFrameIterator, apply_roi_factor
+from .bt_utils.plt_utils import save_img_with_bbox
 from .bt_utils.tracking import ReIDModel, init_tracker, update_tracker
 from .bt_utils.eval_utils import evaluate_detection, extract_boundaries, evaluate_tracking, mot_gt_to_coco_gt, save_mot_format,\
     save_coco_format, load_mot_format, coco_to_perso_format, perso_format_to_trackid_format, solve_id_conflicts, merge_eval_coco, \
@@ -388,6 +389,34 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
+def extract_and_store_feature(classifier, img, roi_file, roi_dir, track_id, frame_idx, features):
+    """
+    Extract a feature and store it in the feature dictionary.
+
+    Args:
+        classifier: MyClassifier, the classifier to use for feature extraction
+        img: np.ndarray, the image to extract the feature from
+        roi_file: str, the path to the region of interest file
+        roi_dir: str, the directory to save the region of interest with bounding box
+        track_id: int, the track ID
+        frame_idx: int, the frame index
+        features: dict, the dictionary to store the extracted features
+
+    Returns:
+        np.ndarray: The extracted bounding box coordinates, or None if extraction failed.
+    """
+    feature, bbox = classifier.extract_feature(img if img is not None else roi_file)
+    if feature is None:
+        return None
+    if bbox is not None:
+        crop_path = os.path.join(roi_dir, f"track_{track_id}_with_bbox", f"{frame_idx}.jpg")
+        if img is not None:
+            save_img_with_bbox(img, bbox, crop_path)
+    else:
+        crop_path = roi_file
+    features[crop_path] = feature
+    return bbox
+
 def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
              roi_det=1.0, avg_score=False, noid_str='NoID', source_roi='', joint_factor=0, log=None):
@@ -509,14 +538,11 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
                             idxs.append(frame_idx)
                             roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
-                            feature, extra_bbox = my_classifier.extract_feature(roi_file)
-                            if feature is None:
-                                continue
-                            features[roi_file] = feature
+                            extra_bbox = extract_and_store_feature(my_classifier, None, roi_file, roi_path, track_id, frame_idx, features)
+                            # features[roi_file] = feature
                             if joint_factor:
-                                feature2, extra_bbox2 = my_classifier2.extract_feature(roi_file)
-                                if feature2 is not None:
-                                    features2[roi_file] = feature2
+                                extra_bbox2 = extract_and_store_feature(my_classifier2, None, roi_file, roi_path, track_id, frame_idx, features2)
+                            # Save extra bbox in det for visualization in video
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
                             elif joint_factor and extra_bbox2 is not None:
@@ -534,31 +560,10 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                                 cv2.imwrite(roi_file, img_cropped)
                             else:
                                 roi_file = 'track_%d_frame_%d' % (track_id, frame_idx)
-                            feature, extra_bbox = my_classifier.extract_feature(img_cropped)
-                            if feature is None:
-                                continue
-                            # For visulization purposes, we save the img_cropped with an overlayed bbox of the extra_bbox if it exists in a dedicated folder
-                            if extra_bbox is not None:
-                                crop_path = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
-                                os.makedirs(os.path.dirname(roi_file), exist_ok=True)
-                                x, y, w, h = extra_bbox
-                                cv2.rectangle(img_cropped, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img_cropped.shape[1]), min(int(y + h), img_cropped.shape[0])), (0, 255, 0), 2)
-                                cv2.imwrite(roi_file, img_cropped)
-                            else:
-                                crop_path = roi_file
-                            features[crop_path] = feature
+                            extra_bbox = extract_and_store_feature(my_classifier, img_cropped, roi_file, roi_path, track_id, frame_idx, features)
                             if joint_factor:
-                                feature2, extra_bbox2 = my_classifier2.extract_feature(img_cropped)
-                                if feature2 is not None:
-                                    if extra_bbox2 is not None:
-                                        crop_path2 = os.path.join(roi_path, 'track_%d_with_bbox' % track_id, '%d.jpg' % frame_idx)
-                                        os.makedirs(os.path.dirname(roi_file), exist_ok=True)
-                                        x, y, w, h = extra_bbox
-                                        cv2.rectangle(img_cropped, (max(0, int(x)), max(0, int(y))), (min(int(x + w), img_cropped.shape[1]), min(int(y + h), img_cropped.shape[0])), (0, 255, 0), 2)
-                                        cv2.imwrite(roi_file, img_cropped)
-                                    else:
-                                        crop_path2 = roi_file
-                                    features2[crop_path2] = feature2
+                                extra_bbox2 = extract_and_store_feature(my_classifier2, img_cropped, roi_file, roi_path, track_id, frame_idx, features2)
+                            # Save extra bbox in det for visualization in video
                             if extra_bbox is not None:
                                 extra_bboxs[frame_idx] = extra_bbox
                             elif joint_factor and extra_bbox2 is not None:
