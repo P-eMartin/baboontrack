@@ -168,9 +168,11 @@ class myCOCOeval(COCOeval):
             cm (np.ndarray): Confusion matrix of shape (num_categories + 1, num_categories + 1).
             labels (list): List of category IDs corresponding to the rows and columns of the confusion matrix.
         """
-
-        cat_ids = sorted(self.cocoGt.getCatIds())
-        cat_to_idx = {c: i for i, c in enumerate(cat_ids)}
+        # Get all categories in the ground truth dataset, sorted by name
+        cats = self.cocoGt.loadCats(self.cocoGt.getCatIds())
+        cats = sorted(cats, key=lambda c: c["name"].lower())
+        cat_ids = [c["id"] for c in cats]
+        cat_to_idx = {cat_id: i for i, cat_id in enumerate(cat_ids)}
 
         n = len(cat_ids)
 
