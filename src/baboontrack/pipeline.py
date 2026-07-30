@@ -464,19 +464,6 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
     if class_database:
         classes += sorted(os.listdir(class_database))
         img_path_dict = build_image_paths_dict(class_database)  # Check if the classification dictionary is well formed
-        if joint_factor:
-            print_and_log('Joint classification is enabled. All tracks will be classified using two preset_classifiers.', log=log)
-            # Full image
-            my_classifier = MyClassifier(device=device, detector_type=None, det_thr=0, nms_thr=0, feat_avg=False, nca=True, epochs=200,
-                                         lr=0.0001, roi_det=1, avg_score=avg_score, name_database=os.path.basename(class_database), log=log)
-            # Primate face crop
-            my_classifier2 = MyClassifier(device=device, detector_type='primateface', det_thr=0.5, nms_thr=0.4, feat_avg=False, nca=True,
-                                          epochs=200, lr=0.0001, roi_det=2.5, avg_score=avg_score, name_database=os.path.basename(class_database),
-                                          log=log)
-        else:
-            my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
-                                        feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
-                                        name_database=os.path.basename(class_database), log=log)
 
         ## Step 1: Sort dict per track_id
         track_dict = perso_format_to_trackid_format(class_dict['detections'])
@@ -486,7 +473,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
             roi_path = os.path.join(os.path.dirname(output_file), 'rois', source_roi) 
             os.makedirs(roi_path, exist_ok=True)
         # Remove sim_th from the filename to allow reusing the same track_class_dict for different sim_th values
-        track_class_dict_path = os.path.join(os.path.dirname(output_file), 'track_class', os.path.basename(output_file).replace('_simth-%g' % sim_th, ''))
+        track_class_dict_path = os.path.join(os.path.dirname(output_file), 'track_class', os.path.basename(output_file).replace('_joint-%g' % joint_factor, '_joint').replace('_simth-%g' % sim_th, ''))
         os.makedirs(os.path.dirname(track_class_dict_path), exist_ok=True)
         if os.path.exists(track_class_dict_path):
             print_and_log('Loading track_class_dict from %s' % (track_class_dict_path), log=log)
@@ -494,7 +481,20 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
             track_class_dict = {int(k): v for k, v in track_class_dict.items()}  # Convert keys to int
         else:
             # Build the database of features for the classifier
-            print_and_log('Building the database of features for the classifier from %s' % (class_database), log=log)
+            if joint_factor:
+                print_and_log('Joint classification is enabled. All tracks will be classified using two preset_classifiers.', log=log)
+                # Full image
+                my_classifier = MyClassifier(device=device, detector_type=None, det_thr=0, nms_thr=0, feat_avg=False, nca=True, epochs=200,
+                                                lr=0.0001, roi_det=1, avg_score=avg_score, name_database=os.path.basename(class_database), log=log)
+                # Primate face crop
+                my_classifier2 = MyClassifier(device=device, detector_type='primateface', det_thr=0.5, nms_thr=0.4, feat_avg=False, nca=True,
+                                                epochs=200, lr=0.0001, roi_det=2.5, avg_score=avg_score, name_database=os.path.basename(class_database),
+                                                log=log)
+            else:
+                my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
+                                            feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
+                                            name_database=os.path.basename(class_database), log=log)
+            print_and_log('Building the database of features for the classifier from %s' % (class_database), log=torch.log)
             my_classifier.build_database(img_path_dict)
             if joint_factor:
                 print_and_log('Building the database of features for the second classifier (primateface) from %s' % (class_database), log=log)
@@ -1025,18 +1025,20 @@ def final_evaluation(args, main_output, log=None):
         main_output: str, the path to the main output folder
         log: logger, the logger to print the information
     '''
+    eval_folder = os.path.join(main_output, 'final_evaluation')
+    os.makedirs(eval_folder, exist_ok=True)
     video_outputs = sorted([os.path.join(main_output, f) for f in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, f))])
     if args.eval_detection:
         # Evaluate detection results
         start_time = time.time()
-        eval_file = os.path.join(main_output, 'det_eval.csv')
+        eval_file = os.path.join(eval_folder, 'det_eval.csv')
         print_and_log('Performing final detection evaluation on all videos together...', log=log)
         merge_eval_coco(
             video_outputs,
             eval_file,
             'gt_det_coco_format.json',
             'det_coco_format',
-            os.path.join(main_output, 'final_evaluation', 'det_eval'),
+            os.path.join(eval_folder, 'det_eval'),
             log=log
         )
         print_and_log('Final detection evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
@@ -1045,7 +1047,7 @@ def final_evaluation(args, main_output, log=None):
         # Evaluate tracking results
         start_time = time.time()
         print_and_log('Performing final tracking evaluation on all videos together...', log=log)
-        eval_file = os.path.join(main_output, 'track_eval.csv')
+        eval_file = os.path.join(eval_folder, 'track_eval.csv')
         gt_file_per_video = {}
         pred_files_per_method_per_video = {}
         for video_output in video_outputs:
@@ -1069,7 +1071,7 @@ def final_evaluation(args, main_output, log=None):
                 print_and_log('Method %s does not have predictions for all videos. Skipping evaluation for this method.' % (method_name), log=log)
                 continue
             pred_folders = [pred_files_per_method_per_video[method_name][video_key] for video_key in video_keys]
-            merge_folder = os.path.join(main_output, 'final_evaluation', 'track_mot_format', method_name)
+            merge_folder = os.path.join(eval_folder, 'track_mot_format', method_name)
             gt_merge, pred_merge = merge_mot_formats(gt_files, pred_folders, merge_folder)
             eval_results = evaluate_tracking(
                 gt_merge,
@@ -1084,13 +1086,13 @@ def final_evaluation(args, main_output, log=None):
     if args.eval_classification:
         # Evaluate classification results
         start_time = time.time()
-        eval_file = os.path.join(main_output, 'class_eval.csv')
+        eval_file = os.path.join(eval_folder, 'class_eval.csv')
         merge_eval_coco(
             video_outputs,
             eval_file,
             'gt_class_coco_format.json',
             'class_coco_format',
-            os.path.join(main_output, 'final_evaluation', 'class_eval'),
+            os.path.join(eval_folder, 'class_eval'),
             ignore_noid=True,
             cm=True,
             pr=True,
