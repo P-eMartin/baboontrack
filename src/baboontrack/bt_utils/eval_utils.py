@@ -971,7 +971,7 @@ def save_coco_format(detection_dict, output_path, image_size=None, labels=None, 
     os.makedirs(output_path, exist_ok=True)
     output_file = os.path.join(output_path, 'detections.json')
     save_json_file(coco_list, output_file)
-    save_json_file(coco_list, output_file.replace('.json', '.pretty.json'), pretty=True)
+    # save_json_file(coco_list, output_file.replace('.json', '.pretty.json'), pretty=True)
     # Save labels if provided
     if labels is not None:
         save_json_file(labels, os.path.join(output_path, 'labels.json'))
