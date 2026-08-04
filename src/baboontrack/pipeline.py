@@ -250,7 +250,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     track_ids = [i for i in range(1, track_id)]
     output_results = {'detections': det_results, 'detection_classes': det_classes, 'format': 'xywh', 'image_size': image_size, 'track_ids': track_ids}
     save_json_file(output_results, output_file)
-    save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
+    # save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
 def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60, score_th=0.5, tracker_type=None, image_size=None, default_cat_id=1, log=None):
@@ -386,7 +386,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     if 'detection_classes' in detection_dict:
         output_results['detection_classes'] = detection_dict['detection_classes']
     save_json_file(output_results, output_file)
-    save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
+    # save_json_file(output_results, output_file.replace('.json', '.pretty.json'), pretty=True)
     return output_results
 
 def extract_and_store_feature(classifier, img, roi_file, roi_dir, track_id, frame_idx, features):
@@ -665,7 +665,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
     class_dict['classification_classes'] = classes
     class_dict['track_ids'] = track_ids
     save_json_file(class_dict, output_file)
-    save_json_file(class_dict, output_file.replace('.json', '.pretty.json'), pretty=True)
+    # save_json_file(class_dict, output_file.replace('.json', '.pretty.json'), pretty=True)
     print_and_log('Classification done in %ds for %d tracks. Results saved in %s' % (time.time() - start_time, n_tracks, output_file), log=log)
 
     return class_dict
@@ -755,7 +755,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         # Save detection and gt as coco format for evaluation
         gt_det_coco_file = os.path.join(args.output, 'gt_det_coco_format.json')
         save_json_file(gt_dict_coco_det, gt_det_coco_file)
-        save_json_file(gt_dict_coco_det, gt_det_coco_file.replace('.json', '.pretty.json'), pretty=True)
+        # save_json_file(gt_dict_coco_det, gt_det_coco_file.replace('.json', '.pretty.json'), pretty=True)
         det_coco_file = save_coco_format(
             detection_dict['detections'],
             os.path.join(args.output, 'det_coco_format', det_name),
@@ -867,7 +867,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         gt_dict_coco_class = mot_gt_to_coco_gt(gt_dict_mot_cat, image_size=image_size, categories=gt_labels)
         gt_class_coco_file = os.path.join(args.output, 'gt_class_coco_format.json')
         save_json_file(gt_dict_coco_class, gt_class_coco_file)
-        save_json_file(gt_dict_coco_class, gt_class_coco_file.replace('.json', '.pretty.json'), pretty=True)
+        # save_json_file(gt_dict_coco_class, gt_class_coco_file.replace('.json', '.pretty.json'), pretty=True)
         gt_classes = [cat['name'] for cat in gt_dict_coco_class['categories']]
         # gt_class_coco_file = save_coco_format(gt_dict_coco_class['annotations'], os.path.join(args.output, 'gt_class_coco_format'), labels=gt_labels)
         uniform_class_list = solve_id_conflicts(class_dict['detections'], classes, gt_labels, default_label=noid_str, log=log)
