@@ -550,7 +550,9 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             idxs.append(frame_idx)
                             img = my_video.get_frame_at_idx(frame_idx)
                             x, y, w, h = apply_roi_factor(det['bbox'], roi_factor)
-                            img_cropped = img[max(0, int(y*img.shape[0])):min(int((y+h)*img.shape[0]), img.shape[0]), max(0, int(x*img.shape[1])):min(int((x+w)*img.shape[1]), img.shape[1])]
+                            x1, y1 = max(0, int(x*img.shape[1])), max(0, int(y*img.shape[0]))
+                            x2, y2 = max(x1+1, min(int((x+w)*img.shape[1]), img.shape[1])), max(y1+1, min(int((y+h)*img.shape[0]), img.shape[0]))
+                            img_cropped = img[y1:y2, x1:x2]
                             if source_roi:
                                 roi_file = os.path.join(roi_path, 'track_%d' % track_id, '%d.jpg' % frame_idx)
                                 os.makedirs(os.path.dirname(roi_file), exist_ok=True)
