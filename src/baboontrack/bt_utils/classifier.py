@@ -332,7 +332,7 @@ class MyClassifier:
             x1, y1, x2, y2 = apply_roi_factor(bboxes[best_idx], self.roi_det, format='xyxy')
             # max, min and closest integer
             x1, y1 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1)))
-            x2, y2 = max(x1+1, int(min(image.shape[1], np.ceil(x2))), min(y1+1, int(min(image.shape[0], np.ceil(y2)))))
+            x2, y2 = max(x1+1, int(min(image.shape[1], np.ceil(x2)))), min(y1+1, int(min(image.shape[0], np.ceil(y2))))
             # 1 chance over 1000 to save the source image and det image in .tmp folder for debugging with parameters in the name and idx (len of the dest folder)
             if np.random.rand() < 0.001:
                 dest_folder = f'.tmp/extracted_roi/{self.name}/'
@@ -415,7 +415,7 @@ class MyClassifier:
                         x1, y1, x2, y2 = apply_roi_factor(bbox, self.roi_det, format='xyxy')
                         # max, min and closest integer
                         x1, y1 = int(max(0, np.floor(x1))), int(max(0, np.floor(y1)))
-                        x2, y2 = max(x1+1, int(min(image.shape[1], np.ceil(x2))), min(y1+1, int(min(image.shape[0], np.ceil(y2)))))
+                        x2, y2 = max(x1+1, int(min(image.shape[1], np.ceil(x2)))), min(y1+1, int(min(image.shape[0], np.ceil(y2))))
                         image = Image.fromarray(image[y1:y2, x1:x2]).convert("RGB")
                     else:
                         image = Image.open(img_path).convert("RGB")
