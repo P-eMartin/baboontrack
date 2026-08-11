@@ -1158,7 +1158,7 @@ def run(**kwargs):
                     f.result()
             else:
                 for input_path in input_list:
-                    _process_video(args, input_path ,main_output, main_funct, log=log)
+                    _process_video(args, input_path ,main_output, main_funct, log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)

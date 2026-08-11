@@ -38,6 +38,9 @@ def setup_logger(logger_name='my_log', log_file='%s.log' % (datetime.datetime.no
         log_file: str, the path to the log file (default 'my_log.log')
         level: int, the level of the logger (default logging.INFO)
     '''
+    # Return logfile if it is already a logger
+    if isinstance(log_file, logging.Logger):
+        return log_file
     if not os.path.isdir(os.path.dirname(os.path.realpath(log_file))):
         os.makedirs(os.path.dirname(os.path.realpath(log_file)))
     l = logging.getLogger(logger_name)
