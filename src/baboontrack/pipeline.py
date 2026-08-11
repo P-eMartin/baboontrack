@@ -840,7 +840,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         tracking_dict,
         my_video,
         os.path.join(args.output, 'class_dicts', '%s.json' % (classi_name)),
-        class_database=os.path.normpath(args.class_database),
+        class_database=os.path.normpath(args.class_database) if args.class_database else '',
         image_size=image_size,
         device=args.device,
         class_det=args.class_det,
@@ -959,7 +959,7 @@ def main_loop(args, log=None):
         prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU']
         joint_factors = [0]
-        class_det_types = [ '']
+        class_det_types = ['']
         feat_avg = [False]
         nca = [False]
         epochs = [0]
