@@ -939,8 +939,8 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    testing = False
-    if testing:
+    mode = "det only"
+    if mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['sam3']
@@ -954,7 +954,21 @@ def main_loop(args, log=None):
         roi_dets = [2.5]
         avg_scores = [False, True]
         sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    else:
+    elif mode == "det only":
+        det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
+        prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
+        tracker_types = ['IoU']
+        joint_factors = [0]
+        class_det_types = [ '']
+        feat_avg = [False]
+        nca = [False]
+        epochs = [0]
+        lr = [0]
+        roi_factors = [1.0]
+        roi_dets = [1.0]
+        avg_scores = [False]
+        sim_ths = [0]
+    elif mode == "all":
         det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
         # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         prompts = ['a baboon', 'an animal']
