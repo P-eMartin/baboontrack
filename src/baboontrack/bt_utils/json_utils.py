@@ -2,6 +2,7 @@ import json
 import ast
 import os
 import numpy as np
+import traceback
 
 class NpEncoder(json.JSONEncoder):
     '''
@@ -48,8 +49,15 @@ def load_json_file(json_file, str_ok=False):
     Returns:
         variable: variable, the variable loaded from the json file
     '''
-    with open(json_file, 'r') as f:
-        variable=json.load(f)
+    try:
+        with open(json_file, 'r') as f:
+            variable=json.load(f)
+    # If error: print the error and stop the program
+    except Exception as e:
+        print(f"Error loading json file {json_file}: {e}")
+        traceback.print_exc()
+        raise e
+        
     if type(variable) is not str or str_ok:
         return variable
     else:
