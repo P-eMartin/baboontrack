@@ -939,7 +939,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    mode = "det only"
+    mode = "all"
     if mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
