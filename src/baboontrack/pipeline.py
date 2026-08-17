@@ -528,10 +528,6 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                         features2 = {}
                     idxs = []
                     extra_bboxs = {}
-                    ## Set my_video to bgr extraction for classification
-                    if not my_video.checked:
-                        my_video.check_video()
-                    my_video.bgr = True
                     ### If source_roi is provided and the roi files already exist, load them instead of extracting them again
                     if source_roi and os.path.exists(os.path.join(roi_path, 'track_%d' % track_id)) and len(os.listdir(os.path.join(roi_path, 'track_%d' % track_id))) == len(track_dets):
                         for det in track_dets:
@@ -545,6 +541,10 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             if extra_bbox is not None or (joint_factor and extra_bbox2 is not None):
                                 extra_bboxs[frame_idx] = extra_bbox if extra_bbox is not None else extra_bbox2
                     else:
+                        ## Set my_video to bgr extraction for classification
+                        if not my_video.checked:
+                            my_video.check_video()
+                        my_video.bgr = True
                         for det in track_dets:
                             frame_idx = det['image_id']-1  # image_id starts at 1 in coco format
                             idxs.append(frame_idx)
@@ -656,7 +656,8 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                             track_class_dict[track_id]['paths_crop'][cls_name],
                             track_class_dict[track_id]['paths_ref'][cls_name]
                         )
-                        for cls_name, score in track_class_dict[track_id]['scores'].items() if assigned_class != cls_name}
+                        for cls_name, score in track_class_dict[track_id]['scores'].items() if assigned_class != cls_name
+                    }
             
     track_ids = list(set(track_ids))
     n_tracks = len(track_ids)
