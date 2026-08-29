@@ -187,7 +187,7 @@ def detect(my_video, output_file, device='cpu', tracking_size=60, score=0.5, det
     '''
     # Initialization
     ## Check if the output file already exists
-    if os.path.exists(output_file):
+    if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
         print_and_log('Output file %s already exists. Skipping detection and tracking.' % (output_file), log=log)
         return output_file
     if not my_video.checked:
@@ -274,7 +274,7 @@ def track(my_video, detection_dict, output_file, device='cpu', tracking_size=60,
     '''
     # Initialization
     ## Check if the output file already exists
-    if os.path.exists(output_file):
+    if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
         print_and_log('Output file %s already exists. Skipping tracking. Loading existing file.' % (output_file), log=log)
         return output_file
     
@@ -451,7 +451,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
     # Initialization
     start_time = time.time()
     ## Check if the output file already exists
-    if os.path.exists(output_file):
+    if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
         print_and_log('Output file %s already exists. Loading existing file.' % (output_file), log=log)
         return load_json_file(output_file)
 
@@ -475,7 +475,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
         # Remove sim_th from the filename to allow reusing the same track_class_dict for different sim_th values
         track_class_dict_path = os.path.join(os.path.dirname(output_file), 'track_class', os.path.basename(output_file).replace('_joint-%g' % joint_factor, '_joint').replace('_simth-%g' % sim_th, ''))
         os.makedirs(os.path.dirname(track_class_dict_path), exist_ok=True)
-        if os.path.exists(track_class_dict_path):
+        if os.path.exists(track_class_dict_path) and os.path.getsize(track_class_dict_path) > 0:
             print_and_log('Loading track_class_dict from %s' % (track_class_dict_path), log=log)
             track_class_dict = load_json_file(track_class_dict_path)
             track_class_dict = {int(k): v for k, v in track_class_dict.items()}  # Convert keys to int
@@ -515,7 +515,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                     'track_%d.pt' % track_id
                 )
                 compute_features = True
-                if os.path.exists(track_features_path):
+                if os.path.exists(track_features_path) and os.path.getsize(track_features_path) > 0:
                     print_and_log('Loading features for track %d from %s' % (track_id, track_features_path), log=log)
                     try:
                         track_features = torch.load(track_features_path, map_location=device)
