@@ -514,15 +514,21 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                     os.path.basename(output_file).replace('_joint-%g' % joint_factor, '_joint').replace('_avg_score', '').replace('_simth-%g' % sim_th, '').replace('.json', ''),
                     'track_%d.pt' % track_id
                 )
+                compute_features = True
                 if os.path.exists(track_features_path):
                     print_and_log('Loading features for track %d from %s' % (track_id, track_features_path), log=log)
-                    track_features = torch.load(track_features_path, map_location=device)
-                    features = track_features['features']
-                    if joint_factor:
-                        features2 = track_features['features2']
-                    idxs = track_features['idxs']
-                    extra_bboxs = track_features['extra_bboxes']
-                else:
+                    try:
+                        track_features = torch.load(track_features_path, map_location=device)
+                        features = track_features['features']
+                        if joint_factor:
+                            features2 = track_features['features2']
+                        idxs = track_features['idxs']
+                        extra_bboxs = track_features['extra_bboxes']
+                        compute_features = False
+                    except Exception as e:
+                        print_and_log('Error loading features for track %d: %s' % (track_id, str(e)), log=log)
+                        print_and_log('Recomputing features for track %d' % (track_id), log=log)
+                if compute_features:
                     features = {}
                     if joint_factor:
                         features2 = {}
