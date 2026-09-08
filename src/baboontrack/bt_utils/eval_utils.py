@@ -401,6 +401,8 @@ class myCOCOeval(COCOeval):
             pred_name = id_to_name[pred_id]
             pred_score = float(ann["score"])
             class_scores = ann["attributes"].get("class_scores", {})
+            if class_scores is None:
+                class_scores = {}
             # Lowercase the class names in class_scores for consistency and sort them by score in descending order
             class_scores = {name.lower(): (_score, _crop_path, _ref_path) for name, (_score, _crop_path, _ref_path) in class_scores.items()}
             # Get the highest score
