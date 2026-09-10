@@ -1161,25 +1161,25 @@ def run(**kwargs):
             main_funct(args, log=log)
         else:
             main_output = copy.deepcopy(args.output)
-            # input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
-            # if args.num_workers:
-            #     args.parser = None
-            #     import multiprocessing as mp
-            #     ctx = mp.get_context("spawn")
-            #     with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=ctx) as executor:
-            #         futures = [executor.submit(
-            #             _process_video,
-            #             args,
-            #             input_path,
-            #             main_output,
-            #             main_funct,
-            #             log_file.replace('.log', '_%d_%s.log' % (idx, os.path.basename(input_path)))) for idx, input_path in enumerate(input_list)]
-            #     # propagate exceptions
-            #     for f in futures:
-            #         f.result()
-            # else:
-            #     for input_path in input_list:
-            #         _process_video(args, input_path ,main_output, main_funct, log)
+            input_list = sorted([os.path.join(args.input_video, f) for f in os.listdir(args.input_video)])
+            if args.num_workers:
+                args.parser = None
+                import multiprocessing as mp
+                ctx = mp.get_context("spawn")
+                with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=ctx) as executor:
+                    futures = [executor.submit(
+                        _process_video,
+                        args,
+                        input_path,
+                        main_output,
+                        main_funct,
+                        log_file.replace('.log', '_%d_%s.log' % (idx, os.path.basename(input_path)))) for idx, input_path in enumerate(input_list)]
+                # propagate exceptions
+                for f in futures:
+                    f.result()
+            else:
+                for input_path in input_list:
+                    _process_video(args, input_path ,main_output, main_funct, log)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)
