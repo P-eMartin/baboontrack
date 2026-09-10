@@ -922,6 +922,8 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video.plot_annotations(
             class_dict['detections'],
             os.path.join(args.output, 'video_demos', '%s.mp4' % (classi_name)),
+            # [],
+            # os.path.join(args.output, 'video_demos', 'annotations.mp4'),
             max_res=args.max_res,
             display_fct=args.display_fct,
             detection_classes=class_dict.get('detection_classes', [args.text_prompt] if 'sam3' in args.det_model else None),
