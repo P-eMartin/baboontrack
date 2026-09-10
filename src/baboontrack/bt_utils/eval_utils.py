@@ -425,7 +425,6 @@ class myCOCOeval(COCOeval):
                     os.remove(crop_symlink)
                 # Wait for a moment to ensure the filesystem has updated
                 root_folder = find_root_folder(crop_path, save_dir)
-                pdb.set_trace()
                 # Create symlinks to ref and crop root folders in the save_dir. Works only if the ref and crop first folders are the same for all samples
                 os.symlink(os.path.relpath(os.path.join(root_folder, get_first_folder(ref_path)), save_dir), ref_symlink)
                 os.symlink(os.path.relpath(os.path.join(root_folder, get_first_folder(crop_path)), save_dir), crop_symlink)
