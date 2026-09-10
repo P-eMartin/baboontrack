@@ -174,6 +174,19 @@ def get_first_folder(path):
         return os.sep + parts[1]
     else:               # relative path, e.g. shared/folder
         return parts[0]
+
+def find_root_folder(short_path, long_path):
+    short_parts = os.path.normpath(short_path).split(os.sep)
+    long_parts = os.path.normpath(long_path).split(os.sep)
+
+    for n in range(len(short_parts), 0, -1):          # try full prefix first, then shrink
+        target = short_parts[:n]
+        for i in range(len(long_parts) - n + 1):
+            if long_parts[i:i + n] == target:
+                root_parts = long_parts[:i]
+                return os.sep.join(root_parts) if root_parts[0] != '' \
+                       else os.sep + os.sep.join(root_parts[1:])
+    return ''  # no match at all, not even one component
     
 def save_dict_as_csv(dict_to_save, save_path, extra_fields_before=None, extra_fields_after=None, without_headers=False):
     '''

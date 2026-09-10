@@ -18,7 +18,7 @@ import csv
 import os
 import copy
 import re
-from .io_utils import print_and_log, get_value_with_precision, save_dict_as_csv, zip_folder, get_first_folder
+from .io_utils import print_and_log, get_value_with_precision, save_dict_as_csv, zip_folder, get_first_folder, find_root_folder
 from .json_utils import load_json_file, save_json_file
 from collections import defaultdict
 import zipfile
@@ -424,10 +424,11 @@ class myCOCOeval(COCOeval):
                 if os.path.islink(crop_symlink):
                     os.remove(crop_symlink)
                 # Wait for a moment to ensure the filesystem has updated
-                time.sleep(0.1)
+                root_folder = find_root_folder(crop_path, save_dir)
+                pdb.set_trace()
                 # Create symlinks to ref and crop root folders in the save_dir. Works only if the ref and crop first folders are the same for all samples
-                os.symlink(os.path.relpath(get_first_folder(ref_path), save_dir), ref_symlink)
-                os.symlink(os.path.relpath(get_first_folder(crop_path), save_dir), crop_symlink)
+                os.symlink(os.path.relpath(os.path.join(root_folder, get_first_folder(ref_path)), save_dir), ref_symlink)
+                os.symlink(os.path.relpath(os.path.join(root_folder, get_first_folder(crop_path)), save_dir), crop_symlink)
                 symlink_created = True
 
             # Determine the GT score and paths based on the prediction
