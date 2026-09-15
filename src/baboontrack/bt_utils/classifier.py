@@ -477,9 +477,9 @@ class MyClassifier:
                 print_and_log(f"Warning: No feature could be extracted for class {class_id}. This class cannot be used for classification.", log=self.log)
                 self.database[class_id] = None
             elif self.feat_avg:
-                avg_feat = torch.stack(id_features.values()).mean(dim=0)
+                avg_feat = torch.stack(list(id_features.values())).mean(dim=0)
                 avg_feat /= avg_feat.norm()
-                self.database[class_id]['averaged_feature'] = avg_feat
+                self.database[class_id] = {'averaged_feature': avg_feat}
             else:
                 self.database[class_id] = id_features
 
