@@ -951,7 +951,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    mode = "train only"
+    mode = "test"
     if mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
