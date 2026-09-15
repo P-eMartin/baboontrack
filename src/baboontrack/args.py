@@ -206,6 +206,12 @@ def get_args():
         help=helptext_loop
     )
     parser.add_argument(
+        '-M', '--mode',
+        default='all',
+        type=str,
+        help=helptext_mode
+    )
+    parser.add_argument(
         '-m', '--save_mot',
         action='store_true',
         help=helptext_save_mot

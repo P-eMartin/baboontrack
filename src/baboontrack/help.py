@@ -148,6 +148,14 @@ This factor determines how much weight is given to the scores from the second cl
 helptext_loop = '''Loop the processing of the video trying different parameters. This can be useful to find the best parameters for a video.
 '''
 
+helptext_mode = '''Mode of operation with the loop over parameters. Default: "all".
+Options:
+- "all": Run the full pipeline with all parameters.
+- "det": Run pipeline only with parameters proper to detection.
+- "train": Run pipeline only with parameters proper to training the classifier.
+- "test": Run pipeline with limited set of parameters for testing the pipeline.
+'''
+
 helptext_class_database = '''Path to the classification dictionary. Default: "/shared/group_dict".
 The classification dictionary is a folder containing subfolders for each class, and each subfolder contains images of that class.
 The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.

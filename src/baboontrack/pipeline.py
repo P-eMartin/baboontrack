@@ -951,8 +951,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    mode = "test"
-    if mode == "test":
+    if args.mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['sam3']
@@ -967,7 +966,7 @@ def main_loop(args, log=None):
         avg_scores = [False, True]
         sim_ths = [0, 0.5, 0.7]
         cls_backbones = ['megadescriptor']
-    elif mode == "det only":
+    elif args.mode == "det":
         det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
         prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         tracker_types = ['IoU']
@@ -982,7 +981,7 @@ def main_loop(args, log=None):
         avg_scores = [False]
         sim_ths = [0]
         cls_backbones = ['dinov2']
-    elif mode == "train only":
+    elif args.mode == "train":
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['IoU']
@@ -997,7 +996,7 @@ def main_loop(args, log=None):
         avg_scores = [False]
         sim_ths = [0]
         cls_backbones = ['megadescriptor']
-    elif mode == "all":
+    elif args.mode == "all":
         det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
         # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
         prompts = ['a baboon', 'an animal']
@@ -1014,7 +1013,7 @@ def main_loop(args, log=None):
         roi_dets = [1, 1.8, 2.5]
         avg_scores = [False, True]
         sim_ths = [0, 0.5, 0.7]
-        cls_backbone = ['dinov2', 'megadescriptor']
+        cls_backbones = ['dinov2', 'megadescriptor']
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
