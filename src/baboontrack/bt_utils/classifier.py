@@ -201,8 +201,9 @@ class MyClassifier:
         else:
             self.projection = None
 
-        self.name = 'MyClassifier' + ('_%s ' % backbone if backbone != 'dinov2' else '') \
+        self.name = 'MyClassifier' \
             + ('_%s' % name_database if name_database else '') \
+            + ('_%s' % backbone if backbone != 'dinov2' else '') \
             + ('_primateface_%g_%g_%g' % (det_thr, nms_thr, roi_det) if detector_type == 'primateface' else '') \
             + ('_NCA_%d-%g' % (epochs, lr) if nca else '')      
     
