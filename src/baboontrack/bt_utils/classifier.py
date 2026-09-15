@@ -490,7 +490,7 @@ class MyClassifier:
         Returns a list of best score per class.
 
         Args:
-            track_feats: list, a list of feature vectors for the track
+            track_feats: dict, a dictionary of feature vectors for the track
 
         Returns:
             scores: dict, a dictionary of best scores for each class
@@ -501,7 +501,7 @@ class MyClassifier:
         paths_ref = {}
         paths_crop = {}
         if self.feat_avg and len(track_feats) > 0:
-            avg_track_feat = torch.stack(track_feats).mean(dim=0)
+            avg_track_feat = torch.stack(list(track_feats.values())).mean(dim=0)
             avg_track_feat /= avg_track_feat.norm()
         for identity, ref_feats in self.database.items():
             if ref_feats is None:
