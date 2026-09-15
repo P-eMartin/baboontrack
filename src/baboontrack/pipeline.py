@@ -838,6 +838,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
     classi_name = track_name
     classi_name += '_roi-%g' % (args.roi_factor)
     source_roi = classi_name
+    classi_name += '_%s' % (args.cls_backbone) if args.cls_backbone != 'dinov2' else ''
     classi_name += '_%s-thr-%g-nms-%g-roi-%g' % (args.class_det, args.class_det_thr, args.class_nms_thr, args.roi_det) if args.class_det else ''
     classi_name += '_featavg' if args.feat_avg else ''
     classi_name += '_nca_%d-%g' % (args.epochs, args.lr) if args.nca else ''
