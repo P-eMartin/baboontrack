@@ -951,7 +951,7 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    mode = "test"
+    mode = "train only"
     if mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
@@ -1050,7 +1050,8 @@ def main_loop(args, log=None):
                                                                 det_model,
                                                                 ' with prompt "%s"' % (prompt) if prompt else '',
                                                                 tracker_type,
-                                                                ' with classification%s%s%s%s' % (
+                                                                ' with classification%s%s%s%s%s' % (
+                                                                    ' with backbone %s' % (cls_backbone) if cls_backbone else '',
                                                                     ' with %s' % (class_det) if class_det else '',
                                                                     ' with feat avg' if feat else '',
                                                                     ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
