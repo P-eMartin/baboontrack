@@ -417,7 +417,7 @@ def extract_and_store_feature(classifier, img, roi_file, roi_dir, track_id, fram
     features[crop_path] = feature
     return bbox
 
-def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.5, image_size=None, device='cpu',
+def classify(detection_dict, my_video, output_file, class_database='', cls_backbone='dinov2', sim_th=0.5, image_size=None, device='cpu',
              class_det=None, class_det_thr=0.5, class_nms_thr=0.4, feat_avg=None, nca=None, epochs=100, lr=1e-4, roi_factor=1.0,
              roi_det=1.0, avg_score=False, noid_str='NoID', source_roi='', joint_factor=0, log=None):
     '''
@@ -428,6 +428,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
         my_video: VideoFrameIterator, the video to process
         output_file: str, the path to save the output file
         class_database: str, the path to the classification dictionary
+        cls_backbone: str, the backbone to use for the classifier (default 'dinov2')
         sim_th: float, similarity threshold for class assignment (default 0.5)
         image_size: tuple, the size of the image (width, height)
         device: str, the device to use for feature extraction (default 'cpu')
@@ -491,7 +492,7 @@ def classify(detection_dict, my_video, output_file, class_database='', sim_th=0.
                                                 epochs=200, lr=0.0001, roi_det=2.5, avg_score=avg_score, name_database=os.path.basename(class_database),
                                                 log=log)
             else:
-                my_classifier = MyClassifier(device=device, detector_type=class_det, det_thr=class_det_thr, nms_thr=class_nms_thr,
+                my_classifier = MyClassifier(device=device, detector_type=class_det, backbone=cls_backbone, det_thr=class_det_thr, nms_thr=class_nms_thr,
                                             feat_avg=feat_avg, nca=nca, epochs=epochs, lr=lr, roi_det=roi_det, avg_score=avg_score,
                                             name_database=os.path.basename(class_database), log=log)
             print_and_log('Building the database of features for the classifier from %s' % (class_database), log=log)
@@ -848,6 +849,7 @@ def main(args, check_stop=false_check, gt_file_class_mot=None, log=None):
         my_video,
         os.path.join(args.output, 'class_dicts', '%s.json' % (classi_name)),
         class_database=os.path.normpath(args.class_database) if args.class_database else '',
+        cls_backbone=args.cls_backbone,
         image_size=image_size,
         device=args.device,
         class_det=args.class_det,
@@ -948,21 +950,22 @@ def main_loop(args, log=None):
         args: argparse.Namespace, the arguments
         log: logger, the logger to print the information
     '''
-    mode = "all"
+    mode = "test"
     if mode == "test":
         det_models = ['sam3']
         prompts = ['a baboon']
         tracker_types = ['sam3']
         joint_factors = [0, 0.25, 0.5, 0.75]
         class_det_types = ['primateface', '']
-        feat_avg = [False]
-        nca = [True]
+        feat_avg = [False, True]
+        nca = [True, False]
         epochs = [200]
-        lr = [1e-4]
-        roi_factors = [1.0]
-        roi_dets = [2.5]
+        lr = [1e-3, 1e-4, 1e-5]
+        roi_factors = [1.0, 1.25]
+        roi_dets = [1, 1.8, 2.5]
         avg_scores = [False, True]
-        sim_ths = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        sim_ths = [0, 0.5, 0.7]
+        cls_backbones = ['megadescriptor']
     elif mode == "det only":
         det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
         prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
@@ -977,6 +980,7 @@ def main_loop(args, log=None):
         roi_dets = [1.0]
         avg_scores = [False]
         sim_ths = [0]
+        cls_backbones = ['dinov2']
     elif mode == "all":
         det_models = ['sam3', 'MDv5a', 'MDv5b', 'sam3_det']
         # prompts = ['a baboon', 'an animal', 'a monkey', 'a primate', 'an ape']
@@ -994,6 +998,7 @@ def main_loop(args, log=None):
         roi_dets = [1, 1.8, 2.5]
         avg_scores = [False, True]
         sim_ths = [0, 0.5, 0.7]
+        cls_backbone = ['dinov2', 'megadescriptor']
     args.input_video = VideoFrameIterator(args.input_video, log=log)
     for det_model in det_models:
         args.det_model = det_model
@@ -1003,39 +1008,41 @@ def main_loop(args, log=None):
             args.tracker_type = tracker_type
             for prompt in prompts if 'sam3' in det_model else ['']:
                 args.text_prompt = prompt
-                for joint_factor in joint_factors:
-                    args.joint_factor = joint_factor
-                    for class_det in class_det_types if not joint_factor else ['']:
-                        args.class_det = class_det
-                        for feat in feat_avg if not joint_factor else [False]:
-                            args.feat_avg = feat
-                            for roi_factor in roi_factors:
-                                args.roi_factor = roi_factor
-                                for nca_val in nca if not joint_factor else [False]:
-                                    args.nca = nca_val
-                                    for epoch in epochs if nca_val else [0]:
-                                        args.epochs = epoch
-                                        for lr_val in lr if nca_val else [0]:
-                                            args.lr = lr_val
-                                            for roi_det in roi_dets if nca_val else [1.0]:
-                                                args.roi_det = roi_det
-                                                for avg_score in avg_scores:
-                                                    args.avg_score = avg_score
-                                                    for sim_th in sim_ths:
-                                                        args.sim_th = sim_th
-                                                        print_and_log('Running det %s%s and tracker %s%s' % (
-                                                            det_model,
-                                                            ' with prompt "%s"' % (prompt) if prompt else '',
-                                                            tracker_type,
-                                                            ' with classification%s%s%s%s' % (
-                                                                ' with %s' % (class_det) if class_det else '',
-                                                                ' with feat avg' if feat else '',
-                                                                ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
-                                                                ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
-                                                            )
-                                                        ), log=log)
-                                                        main(args, log=log)
-                                                        args.input_video.reset_video()
+                for cls_backbone in cls_backbones:
+                    args.cls_backbone = cls_backbone
+                    for joint_factor in joint_factors:
+                        args.joint_factor = joint_factor
+                        for class_det in class_det_types if not joint_factor else ['']:
+                            args.class_det = class_det
+                            for feat in feat_avg if not joint_factor else [False]:
+                                args.feat_avg = feat
+                                for roi_factor in roi_factors:
+                                    args.roi_factor = roi_factor
+                                    for nca_val in nca if not joint_factor else [False]:
+                                        args.nca = nca_val
+                                        for epoch in epochs if nca_val else [0]:
+                                            args.epochs = epoch
+                                            for lr_val in lr if nca_val else [0]:
+                                                args.lr = lr_val
+                                                for roi_det in roi_dets if nca_val else [1.0]:
+                                                    args.roi_det = roi_det
+                                                    for avg_score in avg_scores:
+                                                        args.avg_score = avg_score
+                                                        for sim_th in sim_ths:
+                                                            args.sim_th = sim_th
+                                                            print_and_log('Running det %s%s and tracker %s%s' % (
+                                                                det_model,
+                                                                ' with prompt "%s"' % (prompt) if prompt else '',
+                                                                tracker_type,
+                                                                ' with classification%s%s%s%s' % (
+                                                                    ' with %s' % (class_det) if class_det else '',
+                                                                    ' with feat avg' if feat else '',
+                                                                    ' with NCA using epochs=%d, lr=%.0e, ROI det=%.2g' % (args.epochs, args.lr, args.roi_det) if nca_val else '',
+                                                                    ' with ROI factor %.2f' % (roi_factor) if roi_factor != 1.0 else ''
+                                                                )
+                                                            ), log=log)
+                                                            main(args, log=log)
+                                                            args.input_video.reset_video()
 
 def final_evaluation(args, main_output, log=None):
     '''

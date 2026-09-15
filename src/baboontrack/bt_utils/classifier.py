@@ -130,14 +130,41 @@ class PrimateFaceDetector:
         bboxes, scores = self.pf._processor.detect_primates(img)
         return bboxes, scores
 
+BACKBONES = {
+    'dinov2': {
+        'feat_dim': 768,
+        'size': 224,
+        'mean': [0.485, 0.456, 0.406],
+        'std':  [0.229, 0.224, 0.225],
+    },
+    'megadescriptor': {
+        'hub_id': 'hf-hub:BVRA/MegaDescriptor-L-384',
+        'feat_dim': 1536,
+        'size': 384,
+        'mean': [0.5, 0.5, 0.5],
+        'std':  [0.5, 0.5, 0.5],
+    },
+}
+
 class MyClassifier:
-    def __init__(self, model_path='', device='cpu', detector_type=None, feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4,
-                 epochs=100, lr=1e-4, roi_det=1.0, name_database='', avg_score=False, log=None):
+    def __init__(self, model_path='', device='cpu', backbone='dinov2', detector_type=None,
+                 feat_avg=False, nca=False, det_thr=0.5, nms_thr=0.4, epochs=100, lr=1e-4,
+                 roi_det=1.0, name_database='', avg_score=False, log=None):
         self.log = log
+        if backbone not in BACKBONES:
+            raise ValueError(f"Unknown backbone {backbone}. Available: {list(BACKBONES)}")
+        self.backbone = backbone
+        cfg = BACKBONES[backbone]
+        self.feat_dim = cfg['feat_dim']
+
         # Load the model
-        # model = torch.load(model_path, map_location=device)
-        self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
-        # Device
+        if backbone == 'dinov2':
+            self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
+        else:
+            import timm
+            # num_classes=0 -> forward() returns the pooled (B, feat_dim) embedding
+            self.model = timm.create_model(cfg['hub_id'], pretrained=True, num_classes=0)
+
         self.device = device
         self.model.to(device)
         self.model.eval()
@@ -154,32 +181,28 @@ class MyClassifier:
 
         # Define the transform
         self.transform = T.Compose([
-            T.Resize((224, 224)),
+            T.Resize((cfg['size'], cfg['size'])),
             T.ToTensor(),
-            T.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            ),
+            T.Normalize(mean=cfg['mean'], std=cfg['std']),
         ])
+
         if not detector_type:
             self.det = None
         elif detector_type == 'primateface':
-            self.det = PrimateFaceDetector(
-                device=device,
-                det_thr=det_thr,
-                nms_thr=nms_thr
-            )
+            self.det = PrimateFaceDetector(device=device, det_thr=det_thr, nms_thr=nms_thr)
         else:
             print_and_log(f"Warning: Detector type {detector_type} not recognized. No detector will be used with the classifier.", log=self.log)
             self.det = None
 
         if nca:
-            self.projection = torch.nn.Linear(768, 128)
+            self.projection = torch.nn.Linear(self.feat_dim, 128)
             self.projection.to(device)
             torch.nn.init.eye_(self.projection.weight[:, :128])
         else:
             self.projection = None
-        self.name = 'MyClassifier' + ('_%s' % name_database if name_database else '') \
+
+        self.name = 'MyClassifier' + ('_%s ' % backbone if backbone != 'dinov2' else '') \
+            + ('_%s' % name_database if name_database else '') \
             + ('_primateface_%g_%g_%g' % (det_thr, nms_thr, roi_det) if detector_type == 'primateface' else '') \
             + ('_NCA_%d-%g' % (epochs, lr) if nca else '')      
     

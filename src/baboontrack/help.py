@@ -153,6 +153,12 @@ The classification dictionary is a folder containing subfolders for each class, 
 The classification model will be trained on these images to classify the detected Baboons into the classes defined in the dictionary.
 '''
 
+helptext_cls_backbone = '''Backbone to use for the classifier. Default: "dinov2".
+Options:
+- "dinov2": Use the DINOv2 backbone for feature extraction. This backbone is based on a self-supervised learning approach and can provide robust features for classification.
+- "megadescriptor": Use the MegaDescriptor backbone for feature extraction. This backbone is specifically designed for animal detection and can provide features that are well-suited for classifying Baboons.
+'''
+
 helptext_save_mot = '''Save the results in MOT format. This can be useful for uploading the results to an annotation tool like CVAT or for further analysis.
 '''
 

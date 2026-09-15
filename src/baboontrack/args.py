@@ -106,6 +106,12 @@ def get_args():
         help=helptext_class_database
     )
     parser.add_argument(
+        '-b', '--cls_backbone',
+        default='dinov2',
+        type=str,
+        help=helptext_cls_backbone
+    )
+    parser.add_argument(
         '-Cdet', '--class_det',
         default=None,
         type=str,
