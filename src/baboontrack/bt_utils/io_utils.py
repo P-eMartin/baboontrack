@@ -184,6 +184,8 @@ def find_root_folder(short_path, long_path):
         for i in range(len(long_parts) - n + 1):
             if long_parts[i:i + n] == target:
                 root_parts = long_parts[:i]
+                if len(root_parts) == 0:
+                    return os.sep.join(long_parts[:i+n]) if long_parts[0] != '' else os.sep + os.sep.join(long_parts[1:i+n])
                 return os.sep.join(root_parts) if root_parts[0] != '' \
                        else os.sep + os.sep.join(root_parts[1:])
     return ''  # no match at all, not even one component
