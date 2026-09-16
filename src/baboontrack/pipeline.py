@@ -958,10 +958,10 @@ def main_loop(args, log=None):
         joint_factors = [0]
         class_det_types = ['primateface', '']
         feat_avg = [False, True]
-        nca = [False]
+        nca = [False, True]
         epochs = [200]
-        lr = [1e-4]
-        roi_factors = [1.0, 1.25]
+        lr = [1e-3, 1e-4, 1e-5]
+        roi_factors = [1.0]
         roi_dets = [1, 1.8, 2.5]
         avg_scores = [False, True]
         sim_ths = [0, 0.5, 0.7]
@@ -1145,7 +1145,7 @@ def final_evaluation(args, main_output, log=None):
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
-def _process_video(args, input_path, main_output, main_funct, log_file=None):
+def _process_video(args, input_path, main_output, main_funct, log_file=None, close_log=True):
     args = copy.deepcopy(args)
     args.input_video = input_path
     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
@@ -1154,7 +1154,8 @@ def _process_video(args, input_path, main_output, main_funct, log_file=None):
     else:
         log = None
     main_funct(args, log=log)
-    close_log(log)
+    if close_log:
+        close_log(log)
 
 def run(**kwargs):
     '''
@@ -1204,7 +1205,7 @@ def run(**kwargs):
                     f.result()
             else:
                 for input_path in input_list:
-                    _process_video(args, input_path ,main_output, main_funct, log)
+                    _process_video(args, input_path ,main_output, main_funct, log, close_log=False)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)
