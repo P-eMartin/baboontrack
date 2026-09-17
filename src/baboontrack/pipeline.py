@@ -1145,16 +1145,16 @@ def final_evaluation(args, main_output, log=None):
         )
         print_and_log('Final classification evaluation results performed in %ds and saved in %s' % (time.time() - start_time, eval_file), log=log)
 
-def _process_video(args, input_path, main_output, main_funct, log_file=None, close_log=True):
+def _process_video(args, input_path, main_output, main_funct, log_file=None, do_close_log=True):
     args = copy.deepcopy(args)
     args.input_video = input_path
     args.output = os.path.join(main_output, os.path.basename(input_path).split('.')[0])
     if log_file:
-        log = setup_logger(log_file=log_file)
+        log = setup_logger(logger_name=log_file,log_file=log_file)
     else:
         log = None
     main_funct(args, log=log)
-    if close_log:
+    if do_close_log:
         close_log(log)
 
 def run(**kwargs):
@@ -1205,7 +1205,7 @@ def run(**kwargs):
                     f.result()
             else:
                 for input_path in input_list:
-                    _process_video(args, input_path ,main_output, main_funct, log, close_log=False)
+                    _process_video(args, input_path ,main_output, main_funct, log, do_close_log=False)
             # In folder case, perform a final evaluation on all the videos together if ground truth is available
             final_evaluation(args, main_output, log=log)
         close_log(log)
